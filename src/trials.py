@@ -66,13 +66,14 @@ def plot_correlation_distance_for_a_pair():
         a_c_distances.append(a_to_c_distance[0])
         b_c_distances.append(b_to_c_distance[0])
 
-    pyplot.plot([a_c_distances.index(x) for x in a_c_distances], a_c_distances, color='green')
-    pyplot.plot([b_c_distances.index(x) for x in b_c_distances], b_c_distances, color='red')
+    pyplot.plot([a_c_distances.index(x) for x in a_c_distances], a_c_distances, label='A5')
+    pyplot.plot([b_c_distances.index(x) for x in b_c_distances], b_c_distances, label='A4')
 
     pyplot.title("treated cell lines vs control")
+    pyplot.legend()
     pyplot.grid()
     pyplot.show()
 
 
 if __name__ == "__main__":
-    plot_correlation_distance_for_a_pair()
+    pass
