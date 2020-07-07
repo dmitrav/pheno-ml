@@ -5,11 +5,12 @@ from matplotlib import pyplot
 from scipy.spatial.distance import pdist
 
 
-def get_image_features(image):
+def get_image_features(model, image):
 
     img_data = tf.keras.preprocessing.image.img_to_array(image)
     img_data = numpy.expand_dims(img_data, axis=0)
 
+    assert model._name == 'resnet50'
     img_data = tf.keras.applications.resnet50.preprocess_input(img_data)
 
     features_3d = model.predict(img_data)
@@ -21,11 +22,10 @@ def get_image_features(image):
     return features_averaged_1d
 
 
-if __name__ == "__main__":
-
-    model = tf.keras.applications.ResNet50(include_top=False, weights='imagenet')
+def plot_correlation_distance_for_a_pair():
 
     target_size = (224, 224)
+    model = tf.keras.applications.ResNet50(include_top=False, weights='imagenet')
 
     path = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/batch_1/ACHN_CL3_P1/"
 
@@ -50,14 +50,13 @@ if __name__ == "__main__":
     a_c_distances = []
     b_c_distances = []
     for i in range(len(control)):
-
         image_c = tf.keras.preprocessing.image.load_img(control[i], target_size=target_size)
         image_a = tf.keras.preprocessing.image.load_img(cell_line_a[i], target_size=target_size)
         image_b = tf.keras.preprocessing.image.load_img(cell_line_b[i], target_size=target_size)
 
-        features_c = get_image_features(image_c)
-        features_a = get_image_features(image_a)
-        features_b = get_image_features(image_b)
+        features_c = get_image_features(model, image_c)
+        features_a = get_image_features(model, image_a)
+        features_b = get_image_features(model, image_b)
 
         a_to_c_distance = pdist([features_a.tolist(), features_c.tolist()], metric='correlation')
         b_to_c_distance = pdist([features_b.tolist(), features_c.tolist()], metric='correlation')
@@ -73,3 +72,7 @@ if __name__ == "__main__":
     pyplot.title("treated cell lines vs control")
     pyplot.grid()
     pyplot.show()
+
+
+if __name__ == "__main__":
+    plot_correlation_distance_for_a_pair()
