@@ -89,8 +89,9 @@ def plot_correlation_distance_for_a_drug(drug_name, drug_info, control_ids):
     unique_cons = drug_info['cons'].unique()
 
     control_ids = control_ids.values
-    random_control_subset = numpy.random.choice(control_ids, 4, replace=False).tolist()  # pick 4 controls to compare to
+    random_control_ids = numpy.random.choice(control_ids, 1, replace=False)  # pick 1 control to compare to
 
+    pyplot.figure()
     for i in tqdm(range(len(unique_cons))):
 
         print("data for c = {} is being processed".format(unique_cons[i]))
@@ -108,80 +109,80 @@ def plot_correlation_distance_for_a_drug(drug_name, drug_info, control_ids):
                 if file.startswith(cell_line.replace('/', '_') + con_ids[j]):
                     drug_image_paths[con_ids[j]].append(file)
 
+            drug_image_paths[con_ids[j]] = sorted(drug_image_paths[con_ids[j]])
+
         control_image_paths = {}
         # get images of control for different replicates
-        for j in range(len(control_ids)):
+        for j in range(len(random_control_ids)):
 
-            control_image_paths[control_ids[j]] = []
+            control_image_paths[random_control_ids[j]] = []
             for file in os.listdir(path + batch + cell_line):
 
-                if file.startswith(cell_line.replace('/', '_') + control_ids[j]):
-                    control_image_paths[control_ids[j]].append(file)
+                if file.startswith(cell_line.replace('/', '_') + random_control_ids[j]):
+                    control_image_paths[random_control_ids[j]].append(file)
+
+            control_image_paths[random_control_ids[j]] = sorted(control_image_paths[random_control_ids[j]])
 
         # TODO: check that there's equal number of pictures in each replicate
         #       otherwise -- equalize
 
-        drug_dist_over_time = []
-        for j in range(len(drug_image_paths[con_ids[0]])):  # paths of images
+        for k in range(len(con_ids)):  # ids of replicates of certain concentration
 
-            drug_img_reps = []
-            for k in range(len(con_ids)):  # concentration ids
-                # read replicates
-                rep = tf.keras.preprocessing.image.load_img(path + batch + cell_line + drug_image_paths[con_ids[k]][j], target_size=target_size)
-                rep_features = get_image_features(model, rep)
-                drug_img_reps.append(rep_features)
+            one_replicate_distances = []
+            for j in range(len(drug_image_paths[con_ids[k]])):  # paths of images
 
-            drug_features = numpy.mean(numpy.vstack(drug_img_reps), axis=0)
+                # read a drug replicate
+                drug_rep_image = tf.keras.preprocessing.image.load_img(path + batch + cell_line + drug_image_paths[con_ids[k]][j], target_size=target_size)
+                drug_rep_features = get_image_features(model, drug_rep_image)
 
-            control_img_reps = []
-            for id in random_control_subset:  # control ids
-                # read replicates
-                rep = tf.keras.preprocessing.image.load_img(path + batch + cell_line + control_image_paths[id][j], target_size=target_size)
-                rep_features = get_image_features(model, rep)
-                control_img_reps.append(rep_features)
+                # read a control
+                control_image = tf.keras.preprocessing.image.load_img(path + batch + cell_line + control_image_paths[random_control_ids[0]][j], target_size=target_size)
+                control_features = get_image_features(model, control_image)
 
-            control_features = numpy.mean(numpy.vstack(control_img_reps), axis=0)
+                dist = pdist([drug_rep_features.tolist(), control_features.tolist()], metric='correlation')[0]
+                one_replicate_distances.append(dist)
 
-            drug_control_dist = pdist([drug_features.tolist(), control_features.tolist()], metric='correlation')
-            drug_dist_over_time.append(drug_control_dist)
+            pyplot.plot([one_replicate_distances.index(x) for x in one_replicate_distances], one_replicate_distances,
+                        label=con_ids[k], linewidth=1)
 
-        pyplot.plot([drug_dist_over_time.index(x) for x in drug_dist_over_time], drug_dist_over_time, label='c={}'.format(round(unique_cons[i], 3)))
-
-    pyplot.title("{}, correlation distance to control".format(drug_name))
-    pyplot.legend()
-    pyplot.grid()
-    # pyplot.show()
-    pyplot.savefig("/Users/andreidm/ETH/projects/pheno-ml/res/distances_ACHN_CL3_P1/{}.pdf".format(drug_name))
+        pyplot.title("{}, c={},\ncorrelation distance to control".format(drug_name, round(unique_cons[i], 3)))
+        pyplot.legend()
+        pyplot.grid()
+        # pyplot.show()
+        pyplot.savefig("/Users/andreidm/ETH/projects/pheno-ml/res/distances_ACHN_CL3_P1/{}_c={}.pdf".format(drug_name, round(unique_cons[i], 3)))
 
 
 if __name__ == "__main__":
 
-    meta_data = pandas.read_csv("/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/ACHN_CL3_P1.csv")
+    if False:
+        plot_correlation_distance_for_a_pair()
 
-    control = 'DMSO'
+    if True:
 
-    control_data = meta_data[(meta_data['Drug'] == control) & (meta_data['Final_conc_uM'] == 367.)]
-    control_ids = control_data['Row'].astype('str') + control_data['Column'].astype('str')
+        meta_data = pandas.read_csv("/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/ACHN_CL3_P1.csv")
 
-    drugs_data = meta_data[meta_data['Drug'] != control]
-    drug_names = drugs_data['Drug'].dropna().unique()
+        control = 'DMSO'
 
-    drug_info = {}
-    for drug_name in tqdm(drug_names):
+        control_data = meta_data[(meta_data['Drug'] == control) & (meta_data['Final_conc_uM'] == 367.)]
+        control_ids = control_data['Row'].astype('str') + control_data['Column'].astype('str')
 
-        print(drug_name, "is being processed")
+        drugs_data = meta_data[meta_data['Drug'] != control]
+        drug_names = drugs_data['Drug'].dropna().unique()
 
-        # create a dict for this drug
-        drug_info[drug_name] = {}
-        # add concentraions of this drug
-        drug_data = drugs_data[drugs_data['Drug'] == drug_name]
-        drug_info[drug_name]['cons'] = drug_data['Final_conc_uM'].dropna()
-        # add ids of this drug
-        drug_ids = drug_data['Row'].astype('str') + drug_data['Column'].astype('str')
-        drug_info[drug_name]['ids'] = drug_ids
+        drug_info = {}
+        for drug_name in tqdm(drug_names):
 
-        plot_correlation_distance_for_a_drug(drug_name, drug_info[drug_name], control_ids)
+            print(drug_name, "is being processed")
 
-        print()
+            # create a dict for this drug
+            drug_info[drug_name] = {}
+            # add concentraions of this drug
+            drug_data = drugs_data[drugs_data['Drug'] == drug_name]
+            drug_info[drug_name]['cons'] = drug_data['Final_conc_uM'].dropna()
+            # add ids of this drug
+            drug_ids = drug_data['Row'].astype('str') + drug_data['Column'].astype('str')
+            drug_info[drug_name]['ids'] = drug_ids
 
-    pass
+            plot_correlation_distance_for_a_drug(drug_name, drug_info[drug_name], control_ids)
+
+            print()
