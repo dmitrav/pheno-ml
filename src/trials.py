@@ -108,7 +108,7 @@ def plot_correlation_distance_for_averaged_samples(drug_name, drug_info, control
                 if file.startswith(cell_line.replace('/', '_') + con_ids[j]):
                     drug_image_paths[con_ids[j]].append(file)
 
-        drug_image_paths[con_ids[j]] = sorted(drug_image_paths[con_ids[j]])
+            drug_image_paths[con_ids[j]] = sorted(drug_image_paths[con_ids[j]])
 
         control_image_paths = {}
         # get images of control for different replicates
@@ -120,7 +120,7 @@ def plot_correlation_distance_for_averaged_samples(drug_name, drug_info, control
                 if file.startswith(cell_line.replace('/', '_') + control_ids[j]):
                     control_image_paths[control_ids[j]].append(file)
 
-        control_image_paths[control_ids[j]] = sorted(control_image_paths[control_ids[j]])
+            control_image_paths[control_ids[j]] = sorted(control_image_paths[control_ids[j]])
 
         # TODO: check that there's equal number of pictures in each replicate
         #       otherwise -- equalize
@@ -149,7 +149,8 @@ def plot_correlation_distance_for_averaged_samples(drug_name, drug_info, control
             drug_control_dist = pdist([drug_features.tolist(), control_features.tolist()], metric='correlation')
             drug_dist_over_time.append(drug_control_dist)
 
-        pyplot.plot([drug_dist_over_time.index(x) for x in drug_dist_over_time], drug_dist_over_time, label='c={}'.format(round(unique_cons[i], 3)))
+        pyplot.plot([drug_dist_over_time.index(x) for x in drug_dist_over_time], drug_dist_over_time,
+                    label='c={}'.format(round(unique_cons[i], 3)), linewidth=1)
 
     pyplot.title("{}, correlation distance to control".format(drug_name))
     pyplot.legend()
