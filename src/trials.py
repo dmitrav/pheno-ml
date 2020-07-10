@@ -94,6 +94,7 @@ def plot_correlation_distance_for_averaged_samples(drug_name, drug_info, control
     for i in tqdm(range(len(unique_cons))):
 
         print("data for c = {} is being processed".format(unique_cons[i]))
+        pyplot.figure()
 
         # get ids of different concentrations
         con_ids = drug_info['ids'].values[numpy.where(drug_info['cons'] == unique_cons[i])[0]]

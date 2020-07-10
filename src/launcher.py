@@ -16,7 +16,7 @@ if __name__ == "__main__":
     drug_names = drugs_data['Drug'].dropna().unique()
 
     drug_info = {}
-    for drug_name in tqdm(drug_names):
+    for drug_name in tqdm(['Oligomycin A']):
         print(drug_name, "is being processed")
 
         # create a dict for this drug
