@@ -91,10 +91,10 @@ def plot_correlation_distance_for_averaged_samples(drug_name, drug_info, control
     control_ids = control_ids.values
     random_control_subset = numpy.random.choice(control_ids, 4, replace=False).tolist()  # pick 4 controls to compare to
 
+    pyplot.figure()
     for i in tqdm(range(len(unique_cons))):
 
         print("data for c = {} is being processed".format(unique_cons[i]))
-        pyplot.figure()
 
         # get ids of different concentrations
         con_ids = drug_info['ids'].values[numpy.where(drug_info['cons'] == unique_cons[i])[0]]
@@ -215,6 +215,8 @@ def plot_correlation_distance_for_single_samples(drug_name, drug_info, control_i
             one_replicate_distances = []
             for j in range(len(drug_image_paths[con_ids[k]])):  # paths of images
 
+                # print("i={}, k={}, j={}".format(i, k, j))
+
                 # read a drug replicate
                 drug_rep_image = tf.keras.preprocessing.image.load_img(path + batch + cell_line + drug_image_paths[con_ids[k]][j], target_size=target_size)
                 drug_rep_features = get_image_features(model, drug_rep_image)
@@ -226,6 +228,7 @@ def plot_correlation_distance_for_single_samples(drug_name, drug_info, control_i
                 dist = pdist([drug_rep_features.tolist(), control_features.tolist()], metric='correlation')[0]
                 one_replicate_distances.append(dist)
 
+            print("plot called")
             pyplot.plot([one_replicate_distances.index(x) for x in one_replicate_distances], one_replicate_distances,
                         label=con_ids[k], linewidth=1)
 
@@ -234,6 +237,84 @@ def plot_correlation_distance_for_single_samples(drug_name, drug_info, control_i
         pyplot.grid()
         # pyplot.show()
         pyplot.savefig("/Users/andreidm/ETH/projects/pheno-ml/res/distances_ACHN_CL3_P1/single/{}_c={}.pdf".format(drug_name, round(unique_cons[i], 3)))
+        print("plot saved")
+
+
+def generate_snippets_of_data(drug_info, control_ids):
+    """ This is to generate some examples of distance over time values for Mauro. """
+
+    path = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/"
+
+    batch = 'batch_1/'
+    cell_line = 'ACHN_CL3_P1/'
+
+    target_size = (224, 224)
+    model = tf.keras.applications.ResNet50(include_top=False, weights='imagenet')
+
+    unique_cons = drug_info['cons'].unique()
+
+    control_ids = control_ids.values
+    random_control_ids = numpy.random.choice(control_ids, 1, replace=False)  # pick 1 control to compare to
+
+    snippets = []
+
+    for i in tqdm(range(len(unique_cons))):
+
+        pyplot.figure()
+        print("data for c = {} is being processed".format(unique_cons[i]))
+
+        # get ids of different concentrations
+        con_ids = drug_info['ids'].values[numpy.where(drug_info['cons'] == unique_cons[i])[0]]
+
+        drug_image_paths = {}
+        # get images of a drug for different replicates (of some concentration)
+        for j in range(len(con_ids)):
+
+            drug_image_paths[con_ids[j]] = []
+            for file in os.listdir(path + batch + cell_line):
+
+                if file.startswith(cell_line.replace('/', '_') + con_ids[j]):
+                    drug_image_paths[con_ids[j]].append(file)
+
+            drug_image_paths[con_ids[j]] = sorted(drug_image_paths[con_ids[j]])
+
+        control_image_paths = {}
+        # get images of control for different replicates
+        for j in range(len(random_control_ids)):
+
+            control_image_paths[random_control_ids[j]] = []
+            for file in os.listdir(path + batch + cell_line):
+
+                if file.startswith(cell_line.replace('/', '_') + random_control_ids[j]):
+                    control_image_paths[random_control_ids[j]].append(file)
+
+            control_image_paths[random_control_ids[j]] = sorted(control_image_paths[random_control_ids[j]])
+
+        # TODO: check that there's equal number of pictures in each replicate
+        #       otherwise -- equalize
+
+        for k in range(len(con_ids)):  # ids of replicates of certain concentration
+
+            one_replicate_distances = []
+            for j in range(len(drug_image_paths[con_ids[k]])):  # paths of images
+
+                # read a drug replicate
+                drug_rep_image = tf.keras.preprocessing.image.load_img(
+                    path + batch + cell_line + drug_image_paths[con_ids[k]][j], target_size=target_size)
+                drug_rep_features = get_image_features(model, drug_rep_image)
+
+                # read a control
+                control_image = tf.keras.preprocessing.image.load_img(
+                    path + batch + cell_line + control_image_paths[random_control_ids[0]][j],
+                    target_size=target_size)
+                control_features = get_image_features(model, control_image)
+
+                dist = pdist([drug_rep_features.tolist(), control_features.tolist()], metric='correlation')[0]
+                one_replicate_distances.append(dist)
+
+            snippets.append(one_replicate_distances)
+
+    return snippets
 
 
 if __name__ == "__main__":
@@ -241,7 +322,7 @@ if __name__ == "__main__":
     if False:
         plot_correlation_distance_for_a_pair()
 
-    if True:
+    if False:
 
         meta_data = pandas.read_csv("/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/ACHN_CL3_P1.csv")
 
