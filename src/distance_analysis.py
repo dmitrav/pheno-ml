@@ -353,7 +353,7 @@ if __name__ == "__main__":
             # plot_correlation_distance_for_single_samples(drug_name, drug_info[drug_name], control_ids)
             plot_correlation_distance_for_averaged_samples(drug_name, drug_info[drug_name], control_ids)
 
-    if True:
+    if False:
 
         meta_data = pandas.read_csv("/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/ACHN_CL3_P1.csv")
 
@@ -384,10 +384,10 @@ if __name__ == "__main__":
             results[drug_name] = generate_snippets_of_data(drug_info[drug_name], control_ids)
             print(results[drug_name])
 
-        with open("/Users/andreidm/ETH/projects/pheno-ml/res/distances_ACHN_CL3_P1/single/{}.txt".format(drug_name), 'w') as file:
+        with open("/Users/andreidm/ETH/projects/pheno-ml/res/distances_ACHN_CL3_P1/single/ACHN_CL3_P1.txt", 'w') as file:
             file.write(results.__str__())
 
-        with open("/Users/andreidm/ETH/projects/pheno-ml/res/distances_ACHN_CL3_P1/single/{}.json".format(drug_name), 'w') as file:
+        with open("/Users/andreidm/ETH/projects/pheno-ml/res/distances_ACHN_CL3_P1/single/ACHN_CL3_P1.json", 'w') as file:
             json.dump(results, file)
 
 
