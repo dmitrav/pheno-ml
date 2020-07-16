@@ -35,7 +35,7 @@ def shrink_images(input_path, output_path):
 
 if __name__ == "__main__":
 
-    batch = "batch_1/"
+    batch = "batch_2/"
 
     input_path = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/" + batch
     output_path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images/" + batch
