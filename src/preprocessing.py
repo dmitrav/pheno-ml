@@ -1,5 +1,6 @@
 
 import os
+from multiprocessing import Process
 from PIL import Image
 from PIL import ImageFilter
 from tqdm import tqdm
@@ -7,7 +8,7 @@ from tqdm import tqdm
 
 def shrink_images(input_path, output_path):
 
-    target_size = (224, 224)
+    target_size = (256, 256)
 
     for cell_line_folder in tqdm(os.listdir(input_path)):
 
@@ -35,9 +36,14 @@ def shrink_images(input_path, output_path):
 
 if __name__ == "__main__":
 
-    batch = "batch_2/"
+    for n in [1, 2, 3, 4, 5, 6, 7]:
 
-    input_path = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/" + batch
-    output_path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images/" + batch
+        batch = "batch_{}/".format(str(n))
 
-    shrink_images(input_path, output_path)
+        input_path = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/" + batch
+        output_path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images/" + batch
+
+        # shrink_images(input_path, output_path)
+
+        p = Process(target=shrink_images, args=(input_path, output_path))
+        p.start()
