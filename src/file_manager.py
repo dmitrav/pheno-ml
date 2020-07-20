@@ -35,6 +35,16 @@ def move_random_files_to_another_folder(folder, new_folder, percent):
         shutil.move(folder + file_name, new_folder + file_name)
 
 
+def folders_have_equal_number_of_files(folder_1, folder_2):
+
+    num_1 = len(os.listdir(folder_1))
+    num_2 = len(os.listdir(folder_2))
+
+    print(num_1, num_2, num_1 == num_2)
+
+    return num_1 == num_2
+
+
 if __name__ == "__main__":
 
     if False:
@@ -43,14 +53,36 @@ if __name__ == "__main__":
 
         move_files_to_another_folder(path, new_path)
 
-    if False:
-        path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images/batch_1/ACHN_CL3_P2/single_class/"
-        new_path = "/Users/andreidm/ETH/projects/pheno-ml/data/ACHN_CL3_P2/single_class/"
+    if True:
 
-        copy_files_to_a_folder(path, new_path)
+        old_data_path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images_2/batch_{}/"
+        new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/"
+
+        for n in [3, 6, 7]:
+
+            print("batch {} is being processed".format(n))
+            batch_path = old_data_path.format(n)
+
+            for cell_line_folder in os.listdir(batch_path):
+                print("copying from {}...".format(cell_line_folder))
+
+                old_path_full = batch_path + cell_line_folder + "/"
+                new_path_full = new_data_path + "batch_{}/".format(n) + cell_line_folder + "/"
+
+                copy_files_to_a_folder(old_path_full, new_path_full)
+
 
     if False:
         path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images/batch_1/ACHN_CL3_P2/train/class_1/"
         new_path = path.replace('train', 'validation')
 
         move_random_files_to_another_folder(path, new_path, 0.25)
+
+    if False:
+
+        ending = "batch_7/T47D_CL2_P2/"
+
+        original_folder = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/" + ending
+        my_folder = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images_2/" + ending
+
+        folders_have_equal_number_of_files(original_folder, my_folder)
