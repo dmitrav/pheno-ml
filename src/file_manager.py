@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
     if True:
 
-        ending = "batch_2/IGROV1_CL2_P2/"
+        ending = "batch_4/UACC257_CL1_P2/"
 
         original_folder = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/" + ending
         my_folder = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images_2/" + ending

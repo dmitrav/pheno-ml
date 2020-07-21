@@ -52,7 +52,7 @@ def find_and_shrink_remaining_images(input_path, output_path):
 
             for image_name in tqdm(os.listdir(input_path + cell_line_folder)):
 
-                if image_name.startswith("."):
+                if image_name.startswith(".") or not image_name.endswith('.tif'):
                     continue
                 else:
 
@@ -73,8 +73,8 @@ def find_and_shrink_remaining_images(input_path, output_path):
 
 if __name__ == "__main__":
 
-    # batches 1, 3, 6, 7 have been processed successfully
-    for n in [2, 4, 5]:
+    # batches 1, 3, 4, 6, 7 have been processed successfully
+    for n in [2, 5]:
 
         batch = "batch_{}/".format(str(n))
 

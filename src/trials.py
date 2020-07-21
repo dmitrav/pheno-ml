@@ -12,11 +12,11 @@ if __name__ == "__main__":
     path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/"
 
     BATCH_SIZE = 32
-    EPOCHS = 30
+    EPOCHS = 15
 
     target_size = (128, 128)
 
-    train_datagen = ImageDataGenerator(rescale=1. / 255, validation_split=0.1)
+    train_datagen = ImageDataGenerator(rescale=1./255, validation_split=0.1)
 
     train_batches = train_datagen.flow_from_directory(path, target_size=target_size, color_mode='grayscale',
                                                       subset='training',
@@ -26,7 +26,8 @@ if __name__ == "__main__":
                                                     subset='validation',
                                                     shuffle=True, class_mode='input', batch_size=BATCH_SIZE)
 
-    # currently 15 epochs -> val_loss: 0.6894, 20 epochs -> val_loss: 0.6893
+    # trial #1: 20 epochs -> val_loss: 0.6893
+    # trial #2: 15 epochs -> val_loss: 0.6887
 
     # ENCODER
     input_img = Input(shape=(*target_size, 1))
@@ -62,7 +63,7 @@ if __name__ == "__main__":
 
     history = autoencoder.fit(train_batches,
                               # steps_per_epoch=train_batches.samples // BATCH_SIZE,
-                              steps_per_epoch=1000,
+                              steps_per_epoch=500,
                               epochs=EPOCHS,
                               verbose=1,
                               validation_data=val_batches,
@@ -81,13 +82,13 @@ if __name__ == "__main__":
     x_batch = next(val_batches)[0]
 
     pyplot.figure(figsize=(20, 4))
-    for i in range(0, 5):
-        pyplot.subplot(2, 10, i + 1)
+    for i in range(0, 10):
+        pyplot.subplot(2, 10, i + 11)
         pyplot.imshow(x_batch[i][:, :, 0], cmap='gray')
         pyplot.title("original")
 
     for i in range(0, 5):
-        pyplot.subplot(2, 10, i + 6)
+        pyplot.subplot(2, 10, i + 11)
         input_img = numpy.expand_dims(x_batch[i], axis=0)
         reconstructed_img = autoencoder(input_img)
         pyplot.imshow(reconstructed_img[0][:, :, 0], cmap='gray')
