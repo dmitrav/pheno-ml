@@ -55,8 +55,8 @@ if __name__ == "__main__":
 
     if True:
 
-        old_data_path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images_2/batch_{}/"
-        new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/"
+        old_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/"
+        new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/single_class/"
 
         for n in [3, 6, 7]:
 
@@ -64,15 +64,25 @@ if __name__ == "__main__":
             batch_path = old_data_path.format(n)
 
             for cell_line_folder in os.listdir(batch_path):
-                print("copying from {}...".format(cell_line_folder))
 
-                old_path_full = batch_path + cell_line_folder + "/"
-                new_path_full = new_data_path + "batch_{}/".format(n) + cell_line_folder + "/"
+                if cell_line_folder.startswith("."):
+                    continue
+                else:
 
-                copy_files_to_a_folder(old_path_full, new_path_full)
+                    print("copying from {}...".format(cell_line_folder))
 
+                    old_path_full = batch_path + cell_line_folder + "/"
+                    # new_path_full = new_data_path + "batch_{}/".format(n) + cell_line_folder + "/"
+                    #
+                    # if os.path.exists(new_path_full):
+                    #     # if this folder exists, assume files are there already
+                    #     continue
+                    # else:
+
+                    copy_files_to_a_folder(old_path_full, new_data_path)
 
     if False:
+
         path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images/batch_1/ACHN_CL3_P2/train/class_1/"
         new_path = path.replace('train', 'validation')
 

@@ -355,6 +355,8 @@ if __name__ == "__main__":
 
     if False:
 
+        """ generate snippets of data for Mauro to test T_onset calculation """
+
         meta_data = pandas.read_csv("/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/ACHN_CL3_P1.csv")
 
         control = 'DMSO'
