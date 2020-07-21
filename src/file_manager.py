@@ -53,12 +53,13 @@ if __name__ == "__main__":
 
         move_files_to_another_folder(path, new_path)
 
-    if False:
+    if True:
 
-        old_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/"
-        new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/single_class/"
+        old_data_path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images_2/batch_{}/"
+        new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/"
+        # new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/single_class/"
 
-        for n in [3, 6, 7]:
+        for n in [1, 4]:
 
             print("batch {} is being processed".format(n))
             batch_path = old_data_path.format(n)
@@ -72,14 +73,13 @@ if __name__ == "__main__":
                     print("copying from {}...".format(cell_line_folder))
 
                     old_path_full = batch_path + cell_line_folder + "/"
-                    # new_path_full = new_data_path + "batch_{}/".format(n) + cell_line_folder + "/"
-                    #
-                    # if os.path.exists(new_path_full):
-                    #     # if this folder exists, assume files are there already
-                    #     continue
-                    # else:
+                    new_path_full = new_data_path + "batch_{}/".format(n) + cell_line_folder + "/"
 
-                    copy_files_to_a_folder(old_path_full, new_data_path)
+                    if os.path.exists(new_path_full):
+                        # if this folder exists, assume files are there already
+                        continue
+                    else:
+                        copy_files_to_a_folder(old_path_full, new_path_full)
 
     if False:
 
@@ -88,7 +88,7 @@ if __name__ == "__main__":
 
         move_random_files_to_another_folder(path, new_path, 0.25)
 
-    if True:
+    if False:
 
         ending = "batch_4/UACC257_CL1_P2/"
 

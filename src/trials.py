@@ -12,7 +12,7 @@ if __name__ == "__main__":
     path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/"
 
     BATCH_SIZE = 32
-    EPOCHS = 15
+    EPOCHS = 5
 
     target_size = (128, 128)
 
@@ -27,28 +27,29 @@ if __name__ == "__main__":
                                                     shuffle=True, class_mode='input', batch_size=BATCH_SIZE)
 
     # trial #1: 20 epochs -> val_loss: 0.6893
-    # trial #2: 15 epochs -> val_loss: 0.6887
+    # trial #2: 15 epochs -> val_loss: 0.6887 (reconstruction not very detailed)
+    # trial #3: 5 epochs -> val_loss: 0.6884 (reconstruction more detailed)
 
     # ENCODER
     input_img = Input(shape=(*target_size, 1))
     x = Conv2D(64, (3, 3), activation='relu', padding='same')(input_img)
     x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Conv2D(64, (3, 3), activation='relu', padding='same')(x)
+    x = MaxPooling2D((2, 2), padding='same')(x)
     x = Conv2D(32, (3, 3), activation='relu', padding='same')(x)
     x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Conv2D(16, (3, 3), activation='relu', padding='same')(x)
-    x = MaxPooling2D((2, 2), padding='same')(x)
-    encoded = Conv2D(8, (1, 1), activation='relu', padding='same')(x)
+    encoded = Conv2D(16, (1, 1), activation='relu', padding='same')(x)
 
     # LATENT SPACE
-    latentSize = (16, 16, 8)
+    latentSize = (16, 16, 16)
 
     # DECODER
     direct_input = Input(shape=latentSize)
-    x = Conv2D(8, (1, 1), activation='relu', padding='same')(direct_input)
-    x = UpSampling2D((2, 2))(x)
-    x = Conv2D(16, (3, 3), activation='relu', padding='same')(x)
+    x = Conv2D(16, (1, 1), activation='relu', padding='same')(direct_input)
     x = UpSampling2D((2, 2))(x)
     x = Conv2D(32, (3, 3), activation='relu', padding='same')(x)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(64, (3, 3), activation='relu', padding='same')(x)
     x = UpSampling2D((2, 2))(x)
     x = Conv2D(64, (3, 3), activation='relu', padding='same')(x)
     decoded = Conv2D(1, (3, 3), activation='sigmoid', padding='same')(x)
@@ -77,13 +78,14 @@ if __name__ == "__main__":
     pyplot.plot(epochs, val_loss, 'b', label='Validation loss')
     pyplot.title('Training and validation loss')
     pyplot.legend()
+    pyplot.grid()
     pyplot.show()
 
     x_batch = next(val_batches)[0]
 
     pyplot.figure(figsize=(20, 4))
     for i in range(0, 10):
-        pyplot.subplot(2, 10, i + 11)
+        pyplot.subplot(2, 10, i + 1)
         pyplot.imshow(x_batch[i][:, :, 0], cmap='gray')
         pyplot.title("original")
 
