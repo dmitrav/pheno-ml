@@ -37,8 +37,8 @@ def move_random_files_to_another_folder(folder, new_folder, percent):
 
 def folders_have_equal_number_of_files(folder_1, folder_2):
 
-    num_1 = len(os.listdir(folder_1))
-    num_2 = len(os.listdir(folder_2))
+    num_1 = len([x for x in os.listdir(folder_1) if not x.startswith(".")])
+    num_2 = len([x for x in os.listdir(folder_2) if not x.startswith(".")])
 
     print(num_1, num_2, num_1 == num_2)
 
@@ -53,7 +53,7 @@ if __name__ == "__main__":
 
         move_files_to_another_folder(path, new_path)
 
-    if True:
+    if False:
 
         old_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/"
         new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/single_class/"
@@ -88,9 +88,9 @@ if __name__ == "__main__":
 
         move_random_files_to_another_folder(path, new_path, 0.25)
 
-    if False:
+    if True:
 
-        ending = "batch_7/T47D_CL2_P2/"
+        ending = "batch_2/IGROV1_CL2_P2/"
 
         original_folder = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/" + ending
         my_folder = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images_2/" + ending

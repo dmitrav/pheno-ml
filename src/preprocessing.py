@@ -73,8 +73,8 @@ def find_and_shrink_remaining_images(input_path, output_path):
 
 if __name__ == "__main__":
 
-    # batches 3, 6, 7 have been processed successfully
-    for n in [1, 2, 4, 5]:
+    # batches 1, 3, 6, 7 have been processed successfully
+    for n in [2, 4, 5]:
 
         batch = "batch_{}/".format(str(n))
 
@@ -82,6 +82,8 @@ if __name__ == "__main__":
         output_path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images_2/" + batch
 
         # p = Process(target=shrink_images, args=(input_path, output_path))
+
+        # find_and_shrink_remaining_images(input_path, output_path)
 
         p = Process(target=find_and_shrink_remaining_images, args=(input_path, output_path))
         p.start()

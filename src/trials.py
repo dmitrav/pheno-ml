@@ -26,7 +26,7 @@ if __name__ == "__main__":
                                                     subset='validation',
                                                     shuffle=True, class_mode='input', batch_size=BATCH_SIZE)
 
-    # TODO: scale the same architecture when more data is available
+    # currently 15 epochs -> val_loss: 0.6894, 20 epochs -> val_loss: 0.6893
 
     # ENCODER
     input_img = Input(shape=(*target_size, 1))
