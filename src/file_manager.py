@@ -37,8 +37,8 @@ def move_random_files_to_another_folder(folder, new_folder, percent):
 
 def folders_have_equal_number_of_files(folder_1, folder_2):
 
-    num_1 = len([x for x in os.listdir(folder_1) if not x.startswith(".")])
-    num_2 = len([x for x in os.listdir(folder_2) if not x.startswith(".")])
+    num_1 = len([x for x in os.listdir(folder_1) if not x.startswith(".") and x.endswith(".tif")])
+    num_2 = len([x for x in os.listdir(folder_2) if not x.startswith(".") and x.endswith(".jpg")])
 
     print(num_1, num_2, num_1 == num_2)
 
@@ -53,13 +53,14 @@ if __name__ == "__main__":
 
         move_files_to_another_folder(path, new_path)
 
-    if True:
+    if False:
 
-        old_data_path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images_2/batch_{}/"
-        new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/"
-        # new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/single_class/"
+        # old_data_path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images_2/batch_{}/"
+        old_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/"
+        # new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/"
+        new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/single_class/"
 
-        for n in [1, 4]:
+        for n in [1, 2, 4, 5]:
 
             print("batch {} is being processed".format(n))
             batch_path = old_data_path.format(n)
@@ -73,13 +74,13 @@ if __name__ == "__main__":
                     print("copying from {}...".format(cell_line_folder))
 
                     old_path_full = batch_path + cell_line_folder + "/"
-                    new_path_full = new_data_path + "batch_{}/".format(n) + cell_line_folder + "/"
-
-                    if os.path.exists(new_path_full):
-                        # if this folder exists, assume files are there already
-                        continue
-                    else:
-                        copy_files_to_a_folder(old_path_full, new_path_full)
+                    # new_path_full = new_data_path + "batch_{}/".format(n) + cell_line_folder + "/"
+                    #
+                    # if os.path.exists(new_path_full):
+                    #     # if this folder exists, assume files are there already
+                    #     continue
+                    # else:
+                    copy_files_to_a_folder(old_path_full, new_data_path)
 
     if False:
 
@@ -90,7 +91,7 @@ if __name__ == "__main__":
 
     if False:
 
-        ending = "batch_4/UACC257_CL1_P2/"
+        ending = "batch_5/MALME3M_CL1_P2/"
 
         original_folder = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/" + ending
         my_folder = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images_2/" + ending

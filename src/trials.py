@@ -12,7 +12,7 @@ if __name__ == "__main__":
     path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/"
 
     BATCH_SIZE = 32
-    EPOCHS = 5
+    EPOCHS = 10
 
     target_size = (128, 128)
 
@@ -29,6 +29,7 @@ if __name__ == "__main__":
     # trial #1: 20 epochs -> val_loss: 0.6893
     # trial #2: 15 epochs -> val_loss: 0.6887 (reconstruction not very detailed)
     # trial #3: 5 epochs -> val_loss: 0.6884 (reconstruction more detailed)
+    # trial #4: 10 epochs -> val_loss: 0.6850
 
     # ENCODER
     input_img = Input(shape=(*target_size, 1))
@@ -64,7 +65,7 @@ if __name__ == "__main__":
 
     history = autoencoder.fit(train_batches,
                               # steps_per_epoch=train_batches.samples // BATCH_SIZE,
-                              steps_per_epoch=500,
+                              steps_per_epoch=1000,
                               epochs=EPOCHS,
                               verbose=1,
                               validation_data=val_batches,
@@ -89,7 +90,7 @@ if __name__ == "__main__":
         pyplot.imshow(x_batch[i][:, :, 0], cmap='gray')
         pyplot.title("original")
 
-    for i in range(0, 5):
+    for i in range(0, 10):
         pyplot.subplot(2, 10, i + 11)
         input_img = numpy.expand_dims(x_batch[i], axis=0)
         reconstructed_img = autoencoder(input_img)
