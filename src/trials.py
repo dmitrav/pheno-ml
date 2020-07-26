@@ -1,6 +1,7 @@
 
 import numpy
 from matplotlib import pyplot
+from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D
@@ -12,7 +13,7 @@ if __name__ == "__main__":
     path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/"
 
     BATCH_SIZE = 32
-    EPOCHS = 10
+    EPOCHS = 20
 
     target_size = (128, 128)
 
@@ -33,7 +34,9 @@ if __name__ == "__main__":
 
     # ENCODER
     input_img = Input(shape=(*target_size, 1))
-    x = Conv2D(64, (3, 3), activation='relu', padding='same')(input_img)
+    x = Conv2D(128, (3, 3), activation='relu', padding='same')(input_img)
+    x = MaxPooling2D((2, 2), padding='same')(x)
+    x = Conv2D(96, (3, 3), activation='relu', padding='same')(x)
     x = MaxPooling2D((2, 2), padding='same')(x)
     x = Conv2D(64, (3, 3), activation='relu', padding='same')(x)
     x = MaxPooling2D((2, 2), padding='same')(x)
@@ -52,7 +55,9 @@ if __name__ == "__main__":
     x = UpSampling2D((2, 2))(x)
     x = Conv2D(64, (3, 3), activation='relu', padding='same')(x)
     x = UpSampling2D((2, 2))(x)
-    x = Conv2D(64, (3, 3), activation='relu', padding='same')(x)
+    x = Conv2D(96, (3, 3), activation='relu', padding='same')(x)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(128, (3, 3), activation='relu', padding='same')(x)
     decoded = Conv2D(1, (3, 3), activation='sigmoid', padding='same')(x)
 
     # COMPILE
@@ -63,13 +68,42 @@ if __name__ == "__main__":
     autoencoder.compile(optimizer=Adam(learning_rate=0.001), loss='binary_crossentropy')
     autoencoder.summary()
 
+    if False:
+        # if pretrained
+        print("loading weights")
+        latest = '/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae64_at_30.h5'
+        autoencoder.load_weights(latest)
+
+        print("checking current encodings")
+        x_batch = next(val_batches)[0]
+
+        pyplot.figure()
+        for i in range(0, 10):
+            pyplot.subplot(2, 10, i + 1)
+            pyplot.imshow(x_batch[i][:, :, 0], cmap='gray')
+            pyplot.title("original")
+
+        for i in range(0, 10):
+            pyplot.subplot(2, 10, i + 11)
+            input_img = numpy.expand_dims(x_batch[i], axis=0)
+            reconstructed_img = autoencoder(input_img)
+            pyplot.imshow(reconstructed_img[0][:, :, 0], cmap='gray')
+            pyplot.title("reconstruction")
+
+        pyplot.tight_layout()
+        pyplot.show()
+
+        print("fitting further...")
+
     history = autoencoder.fit(train_batches,
                               # steps_per_epoch=train_batches.samples // BATCH_SIZE,
-                              steps_per_epoch=1000,
+                              steps_per_epoch=10000,
                               epochs=EPOCHS,
                               verbose=1,
                               validation_data=val_batches,
-                              validation_steps=val_batches.samples // BATCH_SIZE)
+                              validation_steps=val_batches.samples // BATCH_SIZE,
+                              # validation_steps=10000,
+                              callbacks=[ModelCheckpoint("../res/weights/ae128_at_{epoch}.h5")])
 
     loss = history.history['loss']
     val_loss = history.history['val_loss']
@@ -84,7 +118,7 @@ if __name__ == "__main__":
 
     x_batch = next(val_batches)[0]
 
-    pyplot.figure(figsize=(20, 4))
+    pyplot.figure()
     for i in range(0, 10):
         pyplot.subplot(2, 10, i + 1)
         pyplot.imshow(x_batch[i][:, :, 0], cmap='gray')
@@ -97,6 +131,7 @@ if __name__ == "__main__":
         pyplot.imshow(reconstructed_img[0][:, :, 0], cmap='gray')
         pyplot.title("reconstruction")
 
+    pyplot.tight_layout()
     pyplot.show()
 
 
