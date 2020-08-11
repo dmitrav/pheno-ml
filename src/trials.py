@@ -37,4 +37,4 @@ if __name__ == "__main__":
     autoencoder.load_weights(weights)
 
     print("checking current encodings")
-    ae.visualize_reconstruction(val_batches, autoencoder)
+    ae.visualize_results(val_batches, autoencoder)

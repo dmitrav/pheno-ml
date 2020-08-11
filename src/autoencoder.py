@@ -72,7 +72,7 @@ def create_autoencoder_model(target_size=(128, 128)):
     return encoder, decoder, ae
 
 
-def visualize_reconstruction(data_batches, trained_model):
+def visualize_reconstruction(data_batches, trained_ae):
 
     x_batch = next(data_batches)[0]
 
@@ -85,7 +85,41 @@ def visualize_reconstruction(data_batches, trained_model):
     for i in range(0, 10):
         pyplot.subplot(2, 10, i + 11)
         input_img = numpy.expand_dims(x_batch[i], axis=0)
-        reconstructed_img = trained_model(input_img)
+        reconstructed_img = trained_ae(input_img)
+        pyplot.imshow(reconstructed_img[0][:, :, 0], cmap='gray')
+        pyplot.title("reconstruction")
+
+    pyplot.tight_layout()
+    pyplot.show()
+
+
+def visualize_results(data_batches, trained_ae):
+
+    encoder = Model(trained_ae.input, trained_ae.layers[-2].output)
+    x_batch = next(data_batches)[0]
+
+    pyplot.figure()
+    for i in range(0, 10):
+        pyplot.subplot(3, 10, i + 1)
+        pyplot.imshow(x_batch[i][:, :, 0], cmap='gray')
+        pyplot.title("original")
+
+    for i in range(0, 10):
+        pyplot.subplot(3, 10, i + 11)
+        input_img = numpy.expand_dims(x_batch[i], axis=0)
+        encoded_img = encoder(input_img)
+
+        # reduce dimensions from 3 to 2
+        new_shape = (int(numpy.sqrt(numpy.product(encoded_img[0].shape))), int(numpy.sqrt(numpy.product(encoded_img[0].shape))))
+        encoded_img = numpy.reshape(encoded_img[0], new_shape)
+
+        pyplot.imshow(encoded_img, cmap='gray')
+        pyplot.title("encodings")
+
+    for i in range(0, 10):
+        pyplot.subplot(3, 10, i + 21)
+        input_img = numpy.expand_dims(x_batch[i], axis=0)
+        reconstructed_img = trained_ae(input_img)
         pyplot.imshow(reconstructed_img[0][:, :, 0], cmap='gray')
         pyplot.title("reconstruction")
 
