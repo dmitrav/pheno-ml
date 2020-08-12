@@ -223,14 +223,14 @@ def create_and_save_encodings_for_well(well_meta, image_paths, save_to_path):
     print(well_meta['Well'].values[0] + ' encoded and saved')
 
 
-if __name__ == "__main__":
+def generate_encodings_for_batches():
 
     all_meta_data = pandas.read_csv("/Users/andreidm/ETH/projects/pheno-ml/data/pheno-ml-metadata.csv")
 
     path_to_images = '/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/'
     path_to_plate_meta_data = '/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/{}.csv'
 
-    for batch in range(1, 8):
+    for batch in range(3, 8):
 
         print("\nprocessing batch {}...\n".format(batch))
 
@@ -277,5 +277,32 @@ if __name__ == "__main__":
 
                         create_and_save_encodings_for_well(meta_data, image_paths, save_to)
 
+
+def load_model_and_plot_results():
+
+    path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/"
+    weights = '/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae128_at_21_0.6800.h5'
+
+    BATCH_SIZE = 32
+    target_size = (128, 128)
+
+    train_datagen = ImageDataGenerator(rescale=1. / 255, validation_split=0.1)
+    train_batches = train_datagen.flow_from_directory(path, target_size=target_size, color_mode='grayscale', subset='training', shuffle=True, class_mode='input', batch_size=BATCH_SIZE)
+    val_batches = train_datagen.flow_from_directory(path, target_size=target_size, color_mode='grayscale', subset='validation', shuffle=True, class_mode='input', batch_size=BATCH_SIZE)
+
+    _, _, autoencoder = create_autoencoder_model(target_size)
+    autoencoder.compile(optimizer=Adam(learning_rate=0.0001), loss='binary_crossentropy')
+    autoencoder.summary()
+
+    print("loading weights")
+    autoencoder.load_weights(weights)
+
+    print("plotting images, encodings and reconstructions")
+    visualize_results(val_batches, autoencoder)
+
+
+if __name__ == "__main__":
+
+    pass
 
 

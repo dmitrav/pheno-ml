@@ -321,7 +321,7 @@ if __name__ == "__main__":
         """ plot just one example of distance between control and drug """
         plot_correlation_distance_for_a_pair()
 
-    if False:
+    if True:
         """ plot all distances for one cell line:
             - for single replicates,
             - or for single drug concentrations with averaged replicates """
@@ -366,7 +366,6 @@ if __name__ == "__main__":
 
         drugs_data = meta_data[meta_data['Drug'] != control]
         drug_names = drugs_data['Drug'].dropna().unique()
-
 
         results = {}
         drug_info = {}

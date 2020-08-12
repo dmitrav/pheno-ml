@@ -1,5 +1,6 @@
 
-import numpy
+import numpy, pandas, os
+from tqdm import tqdm
 from matplotlib import pyplot
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.models import Model
@@ -7,34 +8,58 @@ from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from src import autoencoder as ae
+from matplotlib import pyplot
+from scipy.spatial.distance import pdist
 
 
 if __name__ == "__main__":
 
-    path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/"
+    """  """
 
-    BATCH_SIZE = 32
-    EPOCHS = 20
+    meta_data = pandas.read_csv("/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/ACHN_CL3_P1.csv")
 
-    target_size = (128, 128)
+    control = 'DMSO'
 
-    train_datagen = ImageDataGenerator(rescale=1./255, validation_split=0.1)
+    control_data = meta_data[(meta_data['Drug'] == control) & (meta_data['Final_conc_uM'] == 367.)]
+    control_ids = control_data['Row'].astype('str') + control_data['Column'].astype('str')
 
-    train_batches = train_datagen.flow_from_directory(path, target_size=target_size, color_mode='grayscale',
-                                                      subset='training',
-                                                      shuffle=True, class_mode='input', batch_size=BATCH_SIZE)
+    path_to_encodings = "/Users/andreidm/ETH/projects/pheno-ml/data/batch_1/ACHN_CL3_P1/"
 
-    val_batches = train_datagen.flow_from_directory(path, target_size=target_size, color_mode='grayscale',
-                                                    subset='validation',
-                                                    shuffle=True, class_mode='input', batch_size=BATCH_SIZE)
+    controls = []
+    for id in control_ids.values:
+        if os.path.exists(path_to_encodings + id + '.csv'):
+            control = pandas.read_csv(path_to_encodings + id + '.csv')
+            controls.append(control.values)
+        else:
+            print("well {} not found".format(id))
 
-    encoder, decoder, autoencoder = ae.create_autoencoder_model(target_size)
-    autoencoder.compile(optimizer=Adam(learning_rate=0.0001), loss='binary_crossentropy')
-    autoencoder.summary()
+    average_control = []
+    for i in range(2, controls[0].shape[1]):
+        feature = []
+        for control in controls:
+            feature.append(control[:, i])
+        feature = numpy.mean(feature, axis=0)
+        average_control.append(feature)
 
-    print("loading weights")
-    weights = '/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae128_at_21_0.6800.h5'
-    autoencoder.load_weights(weights)
+    average_control = numpy.array(average_control).T
 
-    print("checking current encodings")
-    ae.visualize_results(val_batches, autoencoder)
+    pyplot.figure()
+    for k in range(len(controls)):
+
+        distance_to_average = []
+        for i in range(average_control.shape[0]):
+
+            single_control_feature = controls[k][i, 2:].tolist()
+            average_control_feature = average_control[i, :].tolist()
+            dist = pdist([single_control_feature, average_control_feature], metric='correlation')[0]
+            distance_to_average.append(dist)
+
+        pyplot.plot(controls[k][:, 1], distance_to_average, label=control_ids.values[k])
+
+    pyplot.grid()
+    pyplot.tight_layout()
+    pyplot.show()
+
+
+
+    pass
