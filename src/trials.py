@@ -10,6 +10,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from src import autoencoder as ae
 from matplotlib import pyplot
 from scipy.spatial.distance import pdist
+from scipy.signal import savgol_filter
 
 
 def get_closest_time_point_index(control_times, drug_time):
@@ -113,9 +114,8 @@ if __name__ == "__main__":
 
             pyplot.subplot(121)
             pyplot.plot(drug_times, drug_con_to_control_dist, label='c={}'.format(round(unique_cons[i], 3)), linewidth=1)
-            pyplot.title("{}, {} distance to control".format(drug_name, metric))
-            pyplot.legend()
-            pyplot.grid()
+
+        # TODO: remove this time onset calculation? maybe write some separate function...
 
         # calculate cvs
         cvs = []
@@ -124,19 +124,28 @@ if __name__ == "__main__":
             cv = numpy.std(all_dists[:, i].flatten()) / numpy.mean(all_dists[:, i].flatten())
             cvs.append(cv)
 
+        cvs_smoothed = savgol_filter(cvs, len(cvs_time_axis) // 2, 10)
+
         # find max variation coef before drug injection
         injection_index = numpy.where(cvs_time_axis >= 0)[0][0]
-        max_cv_before_injection = numpy.max(cvs[:injection_index])
+        max_cv_before_injection = numpy.max(cvs_smoothed[:injection_index])
 
         # find the moment when all the rest CV are bigger than max before injection
         time_onset = 0
-        for i in range(injection_index, len(cvs)):
-            if numpy.all(numpy.array(cvs[i:]) > max_cv_before_injection):
+        for i in range(injection_index, len(cvs_smoothed)):
+            if numpy.all(numpy.array(cvs_smoothed[i:]) > max_cv_before_injection):
                 time_onset = cvs_time_axis[i]
                 break
 
+        pyplot.subplot(121)
+        pyplot.axvline(x=time_onset, c='b', label='onset time')
+        pyplot.title("{}, {} distance to control".format(drug_name, metric))
+        pyplot.legend()
+        pyplot.grid()
+
         pyplot.subplot(122)
-        pyplot.plot(cvs_time_axis, cvs, linewidth=1)
+        pyplot.plot(cvs_time_axis, cvs, linewidth=1, label='cv raw')
+        pyplot.plot(cvs_time_axis, cvs_smoothed, linewidth=1, label='cv smoothed')
         pyplot.axvline(x=time_onset, c='b', label='onset time')
         pyplot.title("{}, variation coefficient in distances".format(drug_name))
         pyplot.legend()
