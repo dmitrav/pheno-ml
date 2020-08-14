@@ -5,7 +5,7 @@ from tqdm import tqdm
 from matplotlib import pyplot
 from scipy.spatial.distance import pdist
 from scipy.signal import savgol_filter
-from multiprocessing import Process
+from multiprocessing import Process, Pool
 
 
 def get_image_features(model, image):
@@ -486,8 +486,8 @@ def get_average_sample_encodings(path_to_encodings, sample_ids, sample_name):
     return sample_encodings, time_scale
 
 
-def calculate_distances_and_save_results(batch_number, metric='euclidean', control='DMSO', save_distances=False, save_dist_plots=False, save_cv_plots=False,
-                                         path_to_save_to='/Users/andreidm/ETH/projects/pheno-ml/res/distances/'):
+def calculate_distances_for_batch_and_save_results(batch_number, metric='euclidean', control='DMSO', save_distances=True, save_dist_plots=True, save_cv_plots=False,
+                                                   path_to_save_to='/Users/andreidm/ETH/projects/pheno-ml/res/distances/'):
 
     path_to_meta = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/{}.csv"  # folder name, e.g. ACHN_CL3_P1
     path_to_batch = "/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/"
@@ -554,9 +554,10 @@ def calculate_distances_and_save_results(batch_number, metric='euclidean', contr
 
                 if save_distances:
 
-                    drug_result = {'time': drug_times}
+                    drug_result = {'time': drug_times.tolist()}
                     for i in range(len(unique_cons)):
-                        drug_result[unique_cons[i]] = all_dists[i]
+                        con_key = str(round(unique_cons[i], 4))
+                        drug_result[con_key] = all_dists[i]
 
                     one_time_path_for_mauro = '/Volumes/biol_imsb_sauer_1/users/Mauro/from_Andrei/distances/'
                     if not os.path.exists(one_time_path_for_mauro + cell_line_folder):
@@ -641,21 +642,20 @@ if __name__ == "__main__":
         plot_distances_single_controls_vs_averaged_one()
 
     if True:
-
         """ run main distance analysis and save results """
 
         save_distances = True
         save_dist_plots = True
-        save_cv_plots = False
-        control = 'DMSO'
-        metric = 'euclidean'
+        save_cv_plots = True
         path_to_save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/distances/'
 
-        for batch in [1, 2, 3, 4, 5, 6, 7]:
+        batches = [1, 2, 3, 4, 5, 6, 7]
 
-            p = Process(target=calculate_distances_and_save_results, args=(batch, metric, control,
-                                                                           save_distances, save_dist_plots, save_cv_plots,
-                                                                           path_to_save_to))
-            p.start()
+        for batch in batches:
+            calculate_distances_for_batch_and_save_results(batch,
+                                                           save_distances=save_distances,
+                                                           save_dist_plots=save_dist_plots,
+                                                           save_cv_plots=save_cv_plots,
+                                                           path_to_save_to=path_to_save_to)
 
 
