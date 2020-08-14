@@ -4,6 +4,7 @@ import numpy, scipy, os, pandas, time, json
 from tqdm import tqdm
 from matplotlib import pyplot
 from scipy.spatial.distance import pdist
+from scipy.signal import savgol_filter
 
 
 def get_image_features(model, image):
@@ -15,9 +16,7 @@ def get_image_features(model, image):
     img_data = tf.keras.applications.resnet50.preprocess_input(img_data)
 
     features_3d = model.predict(img_data)
-
     # print("resnet features dim:", features_3d.shape)
-
     features_averaged_1d = features_3d[0].mean(axis=0).mean(axis=0)
 
     return features_averaged_1d
@@ -315,6 +314,73 @@ def generate_snippets_of_data(drug_info, control_ids):
     return snippets
 
 
+def plot_distances_for_cell_line_using_resnet():
+
+    meta_data = pandas.read_csv(
+        "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/ACHN_CL3_P1.csv")
+
+    control = 'DMSO'
+
+    control_data = meta_data[(meta_data['Drug'] == control) & (meta_data['Final_conc_uM'] == 367.)]
+    control_ids = control_data['Row'].astype('str') + control_data['Column'].astype('str')
+
+    drugs_data = meta_data[meta_data['Drug'] != control]
+    drug_names = drugs_data['Drug'].dropna().unique()
+
+    drug_info = {}
+    for drug_name in tqdm(drug_names):
+        print(drug_name, "is being processed")
+
+        # create a dict for this drug
+        drug_info[drug_name] = {}
+        # add concentraions of this drug
+        drug_data = drugs_data[drugs_data['Drug'] == drug_name]
+        drug_info[drug_name]['cons'] = drug_data['Final_conc_uM'].dropna()
+        # add ids of this drug
+        drug_ids = drug_data['Row'].astype('str') + drug_data['Column'].astype('str')
+        drug_info[drug_name]['ids'] = drug_ids
+
+        # plot_correlation_distance_for_single_samples(drug_name, drug_info[drug_name], control_ids)
+        plot_correlation_distance_for_averaged_samples(drug_name, drug_info[drug_name], control_ids)
+
+
+def generate_snippets_of_distances_for_cell_line_using_resnet():
+
+    meta_data = pandas.read_csv(
+        "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/ACHN_CL3_P1.csv")
+
+    control = 'DMSO'
+
+    control_data = meta_data[(meta_data['Drug'] == control) & (meta_data['Final_conc_uM'] == 367.)]
+    control_ids = control_data['Row'].astype('str') + control_data['Column'].astype('str')
+
+    drugs_data = meta_data[meta_data['Drug'] != control]
+    drug_names = drugs_data['Drug'].dropna().unique()
+
+    results = {}
+    drug_info = {}
+    for drug_name in tqdm(drug_names):
+        print(drug_name, "is being processed")
+
+        # create a dict for this drug
+        drug_info[drug_name] = {}
+        # add concentraions of this drug
+        drug_data = drugs_data[drugs_data['Drug'] == drug_name]
+        drug_info[drug_name]['cons'] = drug_data['Final_conc_uM'].dropna()
+        # add ids of this drug
+        drug_ids = drug_data['Row'].astype('str') + drug_data['Column'].astype('str')
+        drug_info[drug_name]['ids'] = drug_ids
+
+        results[drug_name] = generate_snippets_of_data(drug_info[drug_name], control_ids)
+        print(results[drug_name])
+
+    with open("/Users/andreidm/ETH/projects/pheno-ml/res/distances_ACHN_CL3_P1/single/ACHN_CL3_P1.txt", 'w') as file:
+        file.write(results.__str__())
+
+    with open("/Users/andreidm/ETH/projects/pheno-ml/res/distances_ACHN_CL3_P1/single/ACHN_CL3_P1.json", 'w') as file:
+        json.dump(results, file)
+
+
 def plot_distances_single_controls_vs_averaged_one():
     """ Using already encodings, not pretrained net features. """
 
@@ -362,85 +428,198 @@ def plot_distances_single_controls_vs_averaged_one():
     pyplot.tight_layout()
     pyplot.show()
 
+
+def get_closest_time_point_index(control_times, drug_time):
+    """ Finds the time in control that's the closest to a given drug time,
+        :returns an index of it """
+
+    if drug_time <= numpy.min(control_times):
+        # if (the first) drug time is earlier than (the first) control time,
+        # return the index of the first control time
+        return 0
+    elif drug_time >= numpy.max(control_times):
+        # if (the last) drug time is later than (the last) control time,
+        # return the index of the last control time
+        return control_times.shape[0]-1
+    else:
+        for i in range(control_times.shape[0]-1):
+            # find the interval for a drug time
+            if control_times[i] <= drug_time <= control_times[i+1]:
+                # compare diffs to find the closest between left and right
+                if (control_times[i] - drug_time) < (control_times[i+1] - drug_time):
+                    return i
+                else:
+                    return i+1
+
+
+def get_average_sample_encodings(path_to_encodings, sample_ids, sample_name):
+    """ This method is used to calculate average controls and drug concentration replicates. """
+
+    samples = []
+    for id in sample_ids:
+        if os.path.exists(path_to_encodings + id + '.csv'):
+            sample = pandas.read_csv(path_to_encodings + id + '.csv')
+            samples.append(sample.values)
+        else:
+            print("{}: well {} not found".format(sample_name, id))
+
+    shapes = numpy.array([sample.shape[0] for sample in samples])
+    if len(set(shapes)) > 1:
+        # filter out samples of different shape
+        most_freq_shape = numpy.argmax(numpy.bincount(shapes))
+        samples = [sample for sample in samples if sample.shape[0] == most_freq_shape]
+        print(numpy.sum(shapes == most_freq_shape), 'of', shapes.shape[0], '{} samples have shape {}, using only those'.format(sample_name, most_freq_shape))
+
+    # compute average sample now
+    average_sample = []
+    for i in range(2, samples[0].shape[1]):
+        feature = []
+        for sample in samples:
+            feature.append(sample[:, i])
+        feature = numpy.mean(feature, axis=0)
+        average_sample.append(feature)
+
+    sample_encodings = numpy.array(average_sample).T
+    time_scale = samples[0][:, 1]
+
+    return sample_encodings, time_scale
+
+
 if __name__ == "__main__":
 
     if False:
-        """ plot just one example of distance between control and drug """
+        """ plot just one example of distance between control and drug,
+            using resnet-50 features (quick and dirty, proof-of-principle) """
         plot_correlation_distance_for_a_pair()
 
-    if True:
-        """ plot all distances for one cell line:
+        """ plot all distances for one cell line,
+            using resnet-50 features (quick and dirty, proof-of-principle):
             - for single replicates,
             - or for single drug concentrations with averaged replicates """
+        plot_distances_for_cell_line_using_resnet()
 
-        meta_data = pandas.read_csv("/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/ACHN_CL3_P1.csv")
-
-        control = 'DMSO'
-
-        control_data = meta_data[(meta_data['Drug'] == control) & (meta_data['Final_conc_uM'] == 367.)]
-        control_ids = control_data['Row'].astype('str') + control_data['Column'].astype('str')
-
-        drugs_data = meta_data[meta_data['Drug'] != control]
-        drug_names = drugs_data['Drug'].dropna().unique()
-
-        drug_info = {}
-        for drug_name in tqdm(drug_names):
-
-            print(drug_name, "is being processed")
-
-            # create a dict for this drug
-            drug_info[drug_name] = {}
-            # add concentraions of this drug
-            drug_data = drugs_data[drugs_data['Drug'] == drug_name]
-            drug_info[drug_name]['cons'] = drug_data['Final_conc_uM'].dropna()
-            # add ids of this drug
-            drug_ids = drug_data['Row'].astype('str') + drug_data['Column'].astype('str')
-            drug_info[drug_name]['ids'] = drug_ids
-
-            # plot_correlation_distance_for_single_samples(drug_name, drug_info[drug_name], control_ids)
-            plot_correlation_distance_for_averaged_samples(drug_name, drug_info[drug_name], control_ids)
+        """ generate snippets of data for Mauro to test T_onset calculation,
+            using resnet-50 features (quick and dirty, proof-of-principle) """
+        generate_snippets_of_distances_for_cell_line_using_resnet()
 
     if False:
-
-        """ generate snippets of data for Mauro to test T_onset calculation """
-
-        meta_data = pandas.read_csv("/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/ACHN_CL3_P1.csv")
-
-        control = 'DMSO'
-
-        control_data = meta_data[(meta_data['Drug'] == control) & (meta_data['Final_conc_uM'] == 367.)]
-        control_ids = control_data['Row'].astype('str') + control_data['Column'].astype('str')
-
-        drugs_data = meta_data[meta_data['Drug'] != control]
-        drug_names = drugs_data['Drug'].dropna().unique()
-
-        results = {}
-        drug_info = {}
-        for drug_name in tqdm(drug_names):
-
-            print(drug_name, "is being processed")
-
-            # create a dict for this drug
-            drug_info[drug_name] = {}
-            # add concentraions of this drug
-            drug_data = drugs_data[drugs_data['Drug'] == drug_name]
-            drug_info[drug_name]['cons'] = drug_data['Final_conc_uM'].dropna()
-            # add ids of this drug
-            drug_ids = drug_data['Row'].astype('str') + drug_data['Column'].astype('str')
-            drug_info[drug_name]['ids'] = drug_ids
-
-            results[drug_name] = generate_snippets_of_data(drug_info[drug_name], control_ids)
-            print(results[drug_name])
-
-        with open("/Users/andreidm/ETH/projects/pheno-ml/res/distances_ACHN_CL3_P1/single/ACHN_CL3_P1.txt", 'w') as file:
-            file.write(results.__str__())
-
-        with open("/Users/andreidm/ETH/projects/pheno-ml/res/distances_ACHN_CL3_P1/single/ACHN_CL3_P1.json", 'w') as file:
-            json.dump(results, file)
-
-    if False:
-        ''' explore how single controls of one cell line & plate converge with time with the averaged control '''
+        """ explore how single controls of one cell line & plate converge with time with the averaged control,
+            using proper image encodings """
         plot_distances_single_controls_vs_averaged_one()
+
+    if True:
+
+        """  """
+
+        save_dist_plots = True
+        save_cv_plots = False
+        control = 'DMSO'
+        metric = 'euclidean'
+        path_to_save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/distances/'
+
+        path_to_meta = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/{}.csv"  # folder name, e.g. ACHN_CL3_P1
+        path_to_batch = "/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/"
+
+        for n in [1, 2, 3, 4, 5, 6, 7]:
+            print("batch {} is being processed".format(n))
+            path_to_batch = path_to_batch.format(n)
+
+            for cell_line_folder in os.listdir(path_to_batch):
+                print("folder {} is being processed".format(cell_line_folder))
+                if cell_line_folder.startswith("."):
+                    continue
+                else:
+                    path_to_encodings = path_to_batch + cell_line_folder + '/'
+                    path_to_meta = path_to_meta.format(cell_line_folder)
+
+                    meta_data = pandas.read_csv(path_to_meta)
+
+                    control_data = meta_data[(meta_data['Drug'] == control) & (meta_data['Final_conc_uM'] == 367.)]
+                    control_ids = control_data['Row'].astype('str') + control_data['Column'].astype('str')
+                    average_control, control_times = get_average_sample_encodings(path_to_encodings, control_ids, 'control')
+
+                    drugs_data = meta_data[meta_data['Drug'] != control]
+                    drug_names = drugs_data['Drug'].dropna().unique()
+
+                    for drug_name in tqdm(drug_names):
+                        print(drug_name, "is being processed")
+
+                        # add concentraions of this drug
+                        drug_data = drugs_data[drugs_data['Drug'] == drug_name]
+                        drug_cons = drug_data['Final_conc_uM'].dropna()
+                        drug_ids = drug_data['Row'].astype('str') + drug_data['Column'].astype('str')
+
+                        unique_cons = drug_cons.unique()
+
+                        pyplot.figure()
+                        all_dists = []
+                        cvs_time_axis = []
+                        for i in range(len(unique_cons)):
+
+                            print("data for c = {} is being processed".format(unique_cons[i]))
+
+                            # get ids of different concentrations
+                            con_ids = drug_ids.values[numpy.where(drug_cons == unique_cons[i])[0]]
+
+                            average_drug_con, drug_times = get_average_sample_encodings(path_to_encodings, con_ids, '{}, (c={})'.format(drug_name, unique_cons[i]))
+                            cvs_time_axis = drug_times[:]
+
+                            drug_con_to_control_dist = []
+                            for j in range(len(drug_times)):
+                                closest_time_point_in_control = get_closest_time_point_index(control_times, drug_times[j])
+                                control = average_control[closest_time_point_in_control, :]
+
+                                dist = pdist([average_drug_con[j, :], control], metric=metric)[0]
+                                drug_con_to_control_dist.append(dist)
+
+                            all_dists.append(drug_con_to_control_dist)
+
+                            pyplot.plot(drug_times, drug_con_to_control_dist, label='c={}'.format(round(unique_cons[i], 3)), linewidth=1)
+                            pyplot.title("{}, {} distance to control".format(drug_name, metric))
+                            pyplot.legend()
+                            pyplot.grid()
+
+                        if save_dist_plots:
+                            if not os.path.exists(path_to_save_to + cell_line_folder):
+                                os.makedirs(path_to_save_to + cell_line_folder)
+
+                            # pyplot.savefig(path_to_save_to + cell_line_folder + "/{}.pdf".format(drug_name))
+                            pyplot.show()
+
+                        if save_cv_plots:
+                            # calculate cvs
+                            cvs = []
+                            all_dists = numpy.array(all_dists)
+                            for i in range(all_dists.shape[1]):
+                                cv = numpy.std(all_dists[:, i].flatten()) / numpy.mean(all_dists[:, i].flatten())
+                                cvs.append(cv)
+
+                            cvs_smoothed = savgol_filter(cvs, len(cvs_time_axis) // 2, 10)
+
+                            # find max variation coef before drug injection
+                            injection_index = numpy.where(cvs_time_axis >= 0)[0][0]
+                            max_cv_before_injection = numpy.max(cvs_smoothed[:injection_index])
+
+                            # find the moment when all the rest CV are bigger than max before injection
+                            time_onset = 0
+                            for i in range(injection_index, len(cvs_smoothed)):
+                                if numpy.all(numpy.array(cvs_smoothed[i:]) > max_cv_before_injection):
+                                    time_onset = cvs_time_axis[i]
+                                    break
+
+                            pyplot.figure()
+                            pyplot.plot(cvs_time_axis, cvs, linewidth=1, label='cv raw')
+                            pyplot.plot(cvs_time_axis, cvs_smoothed, linewidth=1, label='cv smoothed')
+                            pyplot.axvline(x=time_onset, c='b', label='onset time')
+                            pyplot.title("{}, variation coefficient in distances".format(drug_name))
+                            pyplot.legend()
+                            pyplot.grid()
+
+                            if not os.path.exists(path_to_save_to + cell_line_folder):
+                                os.makedirs(path_to_save_to + cell_line_folder)
+
+                            pyplot.savefig(path_to_save_to + cell_line_folder + "/CV_{}.pdf".format(drug_name))
+
 
 
 
