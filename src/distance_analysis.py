@@ -492,11 +492,11 @@ def calculate_distances_for_batch_and_save_results(batch_number, metric='euclide
     path_to_all_meta = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/"  # folder name, e.g. ACHN_CL3_P1
     path_to_batches = "/Users/andreidm/ETH/projects/pheno-ml/data/"
 
-    print("batch {} is being processed".format(batch_number))
+    print("\nbatch {} is being processed".format(batch_number))
     path_to_batch = path_to_batches + "batch_{}/".format(batch_number)
 
     for cell_line_folder in os.listdir(path_to_batch):
-        print("folder {} is being processed".format(cell_line_folder))
+        print("\nfolder {} is being processed\n".format(cell_line_folder))
         if cell_line_folder.startswith("."):
             continue
         else:
@@ -558,24 +558,26 @@ def calculate_distances_for_batch_and_save_results(batch_number, metric='euclide
                         drug_result[con_key] = all_dists[i]
 
                     one_time_path_for_mauro = '/Volumes/biol_imsb_sauer_1/users/Mauro/from_Andrei/distances/'
-                    if not os.path.exists(one_time_path_for_mauro + cell_line_folder):
-                        os.makedirs(one_time_path_for_mauro + cell_line_folder)
-                    with open(one_time_path_for_mauro + cell_line_folder + "/{}.txt".format(drug_name),
-                              'w') as file:
+                    current_path = one_time_path_for_mauro + 'batch_{}/'.format(batch_number) + '{}/'.format(cell_line_folder)
+                    if not os.path.exists(current_path):
+                        os.makedirs(current_path)
+                    with open(current_path + "{}.txt".format(drug_name), 'w') as file:
                         file.write(drug_result.__str__())
 
-                    if not os.path.exists(path_to_save_to + cell_line_folder):
-                        os.makedirs(path_to_save_to + cell_line_folder)
-                    with open(path_to_save_to + cell_line_folder + "/{}.json".format(drug_name), 'w') as file:
+                    current_path = path_to_save_to + 'batch_{}/'.format(batch_number) + '{}/'.format(cell_line_folder)
+                    if not os.path.exists(current_path):
+                        os.makedirs(current_path)
+                    with open(current_path + "/{}.json".format(drug_name), 'w') as file:
                         json.dump(drug_result, file)
 
                     print('distances for drug {} saved'.format(drug_name))
 
                 if save_dist_plots:
-                    if not os.path.exists(path_to_save_to + cell_line_folder):
-                        os.makedirs(path_to_save_to + cell_line_folder)
+                    current_path = path_to_save_to + 'batch_{}/'.format(batch_number) + '{}/'.format(cell_line_folder)
+                    if not os.path.exists(current_path):
+                        os.makedirs(current_path)
 
-                    pyplot.savefig(path_to_save_to + cell_line_folder + "/{}.pdf".format(drug_name))
+                    pyplot.savefig(current_path + "/{}.pdf".format(drug_name))
                     # pyplot.show()
 
                     print('distance plots for drug {} saved'.format(drug_name))
@@ -588,7 +590,8 @@ def calculate_distances_for_batch_and_save_results(batch_number, metric='euclide
                         cv = numpy.std(all_dists[:, i].flatten()) / numpy.mean(all_dists[:, i].flatten())
                         cvs.append(cv)
 
-                    cvs_smoothed = savgol_filter(cvs, len(cvs_time_axis) // 2, 10)
+                    window = len(cvs_time_axis) // 2 if (len(cvs_time_axis) // 2) % 2 > 0 else 1 + len(cvs_time_axis) // 2
+                    cvs_smoothed = savgol_filter(cvs, window_length=window, polyorder=10)
 
                     # find max variation coef before drug injection
                     injection_index = numpy.where(cvs_time_axis >= 0)[0][0]
@@ -609,12 +612,15 @@ def calculate_distances_for_batch_and_save_results(batch_number, metric='euclide
                     pyplot.legend()
                     pyplot.grid()
 
-                    if not os.path.exists(path_to_save_to + cell_line_folder):
-                        os.makedirs(path_to_save_to + cell_line_folder)
+                    current_path = path_to_save_to + 'batch_{}/'.format(batch_number) + '{}/'.format(cell_line_folder)
+                    if not os.path.exists(current_path):
+                        os.makedirs(current_path)
 
                     # pyplot.show()
-                    pyplot.savefig(path_to_save_to + cell_line_folder + "/CV_{}.pdf".format(drug_name))
+                    pyplot.savefig(current_path + "/CV_{}.pdf".format(drug_name))
                     print('cv plots for drug {} saved'.format(drug_name))
+
+                pyplot.close('all')
 
 
 if __name__ == "__main__":
