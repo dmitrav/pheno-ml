@@ -5,6 +5,7 @@ from tqdm import tqdm
 from matplotlib import pyplot
 from scipy.spatial.distance import pdist
 from scipy.signal import savgol_filter
+from multiprocessing import Process
 
 
 def get_image_features(model, image):
@@ -485,6 +486,138 @@ def get_average_sample_encodings(path_to_encodings, sample_ids, sample_name):
     return sample_encodings, time_scale
 
 
+def calculate_distances_and_save_results(batch_number, metric='euclidean', control='DMSO', save_distances=False, save_dist_plots=False, save_cv_plots=False,
+                                         path_to_save_to='/Users/andreidm/ETH/projects/pheno-ml/res/distances/'):
+
+    path_to_meta = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/{}.csv"  # folder name, e.g. ACHN_CL3_P1
+    path_to_batch = "/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/"
+
+    n = batch_number
+
+    print("batch {} is being processed".format(n))
+    path_to_batch = path_to_batch.format(n)
+
+    for cell_line_folder in os.listdir(path_to_batch):
+        print("folder {} is being processed".format(cell_line_folder))
+        if cell_line_folder.startswith("."):
+            continue
+        else:
+            path_to_encodings = path_to_batch + cell_line_folder + '/'
+            path_to_meta = path_to_meta.format(cell_line_folder)
+
+            meta_data = pandas.read_csv(path_to_meta)
+
+            control_data = meta_data[(meta_data['Drug'] == control) & (meta_data['Final_conc_uM'] == 367.)]
+            control_ids = control_data['Row'].astype('str') + control_data['Column'].astype('str')
+            average_control, control_times = get_average_sample_encodings(path_to_encodings, control_ids, 'control')
+
+            drugs_data = meta_data[meta_data['Drug'] != control]
+            drug_names = drugs_data['Drug'].dropna().unique()
+
+            for drug_name in drug_names:
+                print(drug_name, "is being processed")
+
+                # add concentraions of this drug
+                drug_data = drugs_data[drugs_data['Drug'] == drug_name]
+                drug_cons = drug_data['Final_conc_uM'].dropna()
+                drug_ids = drug_data['Row'].astype('str') + drug_data['Column'].astype('str')
+
+                unique_cons = drug_cons.unique()
+
+                pyplot.figure()
+                all_dists = []
+                cvs_time_axis = []
+                for i in range(len(unique_cons)):
+
+                    print("data for c = {} is being processed".format(unique_cons[i]))
+
+                    # get ids of different concentrations
+                    con_ids = drug_ids.values[numpy.where(drug_cons == unique_cons[i])[0]]
+
+                    average_drug_con, drug_times = get_average_sample_encodings(path_to_encodings, con_ids, '{}, (c={})'.format(drug_name,unique_cons[i]))
+                    cvs_time_axis = drug_times[:]
+
+                    drug_con_to_control_dist = []
+                    for j in range(len(drug_times)):
+                        closest_time_point_in_control = get_closest_time_point_index(control_times, drug_times[j])
+                        control = average_control[closest_time_point_in_control, :]
+
+                        dist = pdist([average_drug_con[j, :], control], metric=metric)[0]
+                        drug_con_to_control_dist.append(dist)
+
+                    all_dists.append(drug_con_to_control_dist)
+
+                    pyplot.plot(drug_times, drug_con_to_control_dist, label='c={}'.format(round(unique_cons[i], 3)),linewidth=1)
+                    pyplot.title("{}, {} distance to control".format(drug_name, metric))
+                    pyplot.legend()
+                    pyplot.grid()
+
+                if save_distances:
+
+                    drug_result = {'time': drug_times}
+                    for i in range(len(unique_cons)):
+                        drug_result[unique_cons[i]] = all_dists[i]
+
+                    one_time_path_for_mauro = '/Volumes/biol_imsb_sauer_1/users/Mauro/from_Andrei/distances/'
+                    if not os.path.exists(one_time_path_for_mauro + cell_line_folder):
+                        os.makedirs(one_time_path_for_mauro + cell_line_folder)
+                    with open(one_time_path_for_mauro + cell_line_folder + "/{}.txt".format(drug_name),
+                              'w') as file:
+                        file.write(drug_result.__str__())
+
+                    if not os.path.exists(path_to_save_to + cell_line_folder):
+                        os.makedirs(path_to_save_to + cell_line_folder)
+                    with open(path_to_save_to + cell_line_folder + "/{}.json".format(drug_name), 'w') as file:
+                        json.dump(drug_result, file)
+
+                    print('distances for drug {} saved'.format(drug_name))
+
+                if save_dist_plots:
+                    if not os.path.exists(path_to_save_to + cell_line_folder):
+                        os.makedirs(path_to_save_to + cell_line_folder)
+
+                    pyplot.savefig(path_to_save_to + cell_line_folder + "/{}.pdf".format(drug_name))
+                    # pyplot.show()
+
+                    print('distance plots for drug {} saved'.format(drug_name))
+
+                if save_cv_plots:
+                    # calculate cvs
+                    cvs = []
+                    all_dists = numpy.array(all_dists)
+                    for i in range(all_dists.shape[1]):
+                        cv = numpy.std(all_dists[:, i].flatten()) / numpy.mean(all_dists[:, i].flatten())
+                        cvs.append(cv)
+
+                    cvs_smoothed = savgol_filter(cvs, len(cvs_time_axis) // 2, 10)
+
+                    # find max variation coef before drug injection
+                    injection_index = numpy.where(cvs_time_axis >= 0)[0][0]
+                    max_cv_before_injection = numpy.max(cvs_smoothed[:injection_index])
+
+                    # find the moment when all the rest CV are bigger than max before injection
+                    time_onset = 0
+                    for i in range(injection_index, len(cvs_smoothed)):
+                        if numpy.all(numpy.array(cvs_smoothed[i:]) > max_cv_before_injection):
+                            time_onset = cvs_time_axis[i]
+                            break
+
+                    pyplot.figure()
+                    pyplot.plot(cvs_time_axis, cvs, linewidth=1, label='cv raw')
+                    pyplot.plot(cvs_time_axis, cvs_smoothed, linewidth=1, label='cv smoothed')
+                    pyplot.axvline(x=time_onset, c='b', label='onset time')
+                    pyplot.title("{}, variation coefficient in distances".format(drug_name))
+                    pyplot.legend()
+                    pyplot.grid()
+
+                    if not os.path.exists(path_to_save_to + cell_line_folder):
+                        os.makedirs(path_to_save_to + cell_line_folder)
+
+                    # pyplot.show()
+                    pyplot.savefig(path_to_save_to + cell_line_folder + "/CV_{}.pdf".format(drug_name))
+                    print('cv plots for drug {} saved'.format(drug_name))
+
+
 if __name__ == "__main__":
 
     if False:
@@ -509,119 +642,20 @@ if __name__ == "__main__":
 
     if True:
 
-        """  """
+        """ run main distance analysis and save results """
 
+        save_distances = True
         save_dist_plots = True
         save_cv_plots = False
         control = 'DMSO'
         metric = 'euclidean'
         path_to_save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/distances/'
 
-        path_to_meta = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/{}.csv"  # folder name, e.g. ACHN_CL3_P1
-        path_to_batch = "/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/"
+        for batch in [1, 2, 3, 4, 5, 6, 7]:
 
-        for n in [1, 2, 3, 4, 5, 6, 7]:
-            print("batch {} is being processed".format(n))
-            path_to_batch = path_to_batch.format(n)
-
-            for cell_line_folder in os.listdir(path_to_batch):
-                print("folder {} is being processed".format(cell_line_folder))
-                if cell_line_folder.startswith("."):
-                    continue
-                else:
-                    path_to_encodings = path_to_batch + cell_line_folder + '/'
-                    path_to_meta = path_to_meta.format(cell_line_folder)
-
-                    meta_data = pandas.read_csv(path_to_meta)
-
-                    control_data = meta_data[(meta_data['Drug'] == control) & (meta_data['Final_conc_uM'] == 367.)]
-                    control_ids = control_data['Row'].astype('str') + control_data['Column'].astype('str')
-                    average_control, control_times = get_average_sample_encodings(path_to_encodings, control_ids, 'control')
-
-                    drugs_data = meta_data[meta_data['Drug'] != control]
-                    drug_names = drugs_data['Drug'].dropna().unique()
-
-                    for drug_name in tqdm(drug_names):
-                        print(drug_name, "is being processed")
-
-                        # add concentraions of this drug
-                        drug_data = drugs_data[drugs_data['Drug'] == drug_name]
-                        drug_cons = drug_data['Final_conc_uM'].dropna()
-                        drug_ids = drug_data['Row'].astype('str') + drug_data['Column'].astype('str')
-
-                        unique_cons = drug_cons.unique()
-
-                        pyplot.figure()
-                        all_dists = []
-                        cvs_time_axis = []
-                        for i in range(len(unique_cons)):
-
-                            print("data for c = {} is being processed".format(unique_cons[i]))
-
-                            # get ids of different concentrations
-                            con_ids = drug_ids.values[numpy.where(drug_cons == unique_cons[i])[0]]
-
-                            average_drug_con, drug_times = get_average_sample_encodings(path_to_encodings, con_ids, '{}, (c={})'.format(drug_name, unique_cons[i]))
-                            cvs_time_axis = drug_times[:]
-
-                            drug_con_to_control_dist = []
-                            for j in range(len(drug_times)):
-                                closest_time_point_in_control = get_closest_time_point_index(control_times, drug_times[j])
-                                control = average_control[closest_time_point_in_control, :]
-
-                                dist = pdist([average_drug_con[j, :], control], metric=metric)[0]
-                                drug_con_to_control_dist.append(dist)
-
-                            all_dists.append(drug_con_to_control_dist)
-
-                            pyplot.plot(drug_times, drug_con_to_control_dist, label='c={}'.format(round(unique_cons[i], 3)), linewidth=1)
-                            pyplot.title("{}, {} distance to control".format(drug_name, metric))
-                            pyplot.legend()
-                            pyplot.grid()
-
-                        if save_dist_plots:
-                            if not os.path.exists(path_to_save_to + cell_line_folder):
-                                os.makedirs(path_to_save_to + cell_line_folder)
-
-                            # pyplot.savefig(path_to_save_to + cell_line_folder + "/{}.pdf".format(drug_name))
-                            pyplot.show()
-
-                        if save_cv_plots:
-                            # calculate cvs
-                            cvs = []
-                            all_dists = numpy.array(all_dists)
-                            for i in range(all_dists.shape[1]):
-                                cv = numpy.std(all_dists[:, i].flatten()) / numpy.mean(all_dists[:, i].flatten())
-                                cvs.append(cv)
-
-                            cvs_smoothed = savgol_filter(cvs, len(cvs_time_axis) // 2, 10)
-
-                            # find max variation coef before drug injection
-                            injection_index = numpy.where(cvs_time_axis >= 0)[0][0]
-                            max_cv_before_injection = numpy.max(cvs_smoothed[:injection_index])
-
-                            # find the moment when all the rest CV are bigger than max before injection
-                            time_onset = 0
-                            for i in range(injection_index, len(cvs_smoothed)):
-                                if numpy.all(numpy.array(cvs_smoothed[i:]) > max_cv_before_injection):
-                                    time_onset = cvs_time_axis[i]
-                                    break
-
-                            pyplot.figure()
-                            pyplot.plot(cvs_time_axis, cvs, linewidth=1, label='cv raw')
-                            pyplot.plot(cvs_time_axis, cvs_smoothed, linewidth=1, label='cv smoothed')
-                            pyplot.axvline(x=time_onset, c='b', label='onset time')
-                            pyplot.title("{}, variation coefficient in distances".format(drug_name))
-                            pyplot.legend()
-                            pyplot.grid()
-
-                            if not os.path.exists(path_to_save_to + cell_line_folder):
-                                os.makedirs(path_to_save_to + cell_line_folder)
-
-                            pyplot.savefig(path_to_save_to + cell_line_folder + "/CV_{}.pdf".format(drug_name))
-
-
-
-
+            p = Process(target=calculate_distances_and_save_results, args=(batch, metric, control,
+                                                                           save_distances, save_dist_plots, save_cv_plots,
+                                                                           path_to_save_to))
+            p.start()
 
 
