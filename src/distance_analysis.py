@@ -486,16 +486,14 @@ def get_average_sample_encodings(path_to_encodings, sample_ids, sample_name):
     return sample_encodings, time_scale
 
 
-def calculate_distances_for_batch_and_save_results(batch_number, metric='euclidean', control='DMSO', save_distances=True, save_dist_plots=True, save_cv_plots=False,
+def calculate_distances_for_batch_and_save_results(batch_number, metric='euclidean', control_name='DMSO', save_distances=True, save_dist_plots=True, save_cv_plots=False,
                                                    path_to_save_to='/Users/andreidm/ETH/projects/pheno-ml/res/distances/'):
 
-    path_to_meta = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/{}.csv"  # folder name, e.g. ACHN_CL3_P1
-    path_to_batch = "/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/"
+    path_to_all_meta = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/"  # folder name, e.g. ACHN_CL3_P1
+    path_to_batches = "/Users/andreidm/ETH/projects/pheno-ml/data/"
 
-    n = batch_number
-
-    print("batch {} is being processed".format(n))
-    path_to_batch = path_to_batch.format(n)
+    print("batch {} is being processed".format(batch_number))
+    path_to_batch = path_to_batches + "batch_{}/".format(batch_number)
 
     for cell_line_folder in os.listdir(path_to_batch):
         print("folder {} is being processed".format(cell_line_folder))
@@ -503,15 +501,15 @@ def calculate_distances_for_batch_and_save_results(batch_number, metric='euclide
             continue
         else:
             path_to_encodings = path_to_batch + cell_line_folder + '/'
-            path_to_meta = path_to_meta.format(cell_line_folder)
+            path_to_meta = path_to_all_meta + "{}.csv".format(cell_line_folder)
 
             meta_data = pandas.read_csv(path_to_meta)
 
-            control_data = meta_data[(meta_data['Drug'] == control) & (meta_data['Final_conc_uM'] == 367.)]
+            control_data = meta_data[(meta_data['Drug'] == control_name) & (meta_data['Final_conc_uM'] == 367.)]
             control_ids = control_data['Row'].astype('str') + control_data['Column'].astype('str')
             average_control, control_times = get_average_sample_encodings(path_to_encodings, control_ids, 'control')
 
-            drugs_data = meta_data[meta_data['Drug'] != control]
+            drugs_data = meta_data[meta_data['Drug'] != control_name]
             drug_names = drugs_data['Drug'].dropna().unique()
 
             for drug_name in drug_names:
@@ -540,9 +538,9 @@ def calculate_distances_for_batch_and_save_results(batch_number, metric='euclide
                     drug_con_to_control_dist = []
                     for j in range(len(drug_times)):
                         closest_time_point_in_control = get_closest_time_point_index(control_times, drug_times[j])
-                        control = average_control[closest_time_point_in_control, :]
+                        control_of_the_same_time = average_control[closest_time_point_in_control, :]
 
-                        dist = pdist([average_drug_con[j, :], control], metric=metric)[0]
+                        dist = pdist([average_drug_con[j, :], control_of_the_same_time], metric=metric)[0]
                         drug_con_to_control_dist.append(dist)
 
                     all_dists.append(drug_con_to_control_dist)
