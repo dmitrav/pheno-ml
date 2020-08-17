@@ -21,32 +21,35 @@ def collect_encodings_by_time_point(n_batches_to_use, time_point='zero', path_to
                 continue
             else:
                 path_to_encodings = path_to_batch + cell_line_folder + '/'
-                for well in os.listdir(path_to_encodings):
-                    if well.endswith('.csv'):
 
-                        well_encodings = pandas.read_csv(path_to_encodings + well).values
-                        time = well_encodings[:, 1].astype('float32')
-                        encodings = well_encodings[:, 2:].astype('float32')
+                # take only every second path to speed up calculations
+                well_paths = [file for file in os.listdir(path_to_encodings) if file.endswith('.csv')][::2]
 
-                        if time_point == 'zero':
-                            # get number of encodings before drug administration
-                            n_times_before_drug = time[time < 0].shape[0]
-                            # append only the one right before drug (i.e. max grown cells)
-                            cell_line_encodings.append(encodings[n_times_before_drug - 1, :])
-                        elif time_point == 'end':
-                            # append only the last one (i.e. max drug effect)
-                            cell_line_encodings.append(encodings[time.shape[0] - 1, :])
-                        elif isinstance(time_point, int) or isinstance(time_point, float):
-                            # TODO: implement retrieving a particular time point if necessary
-                            pass
-                        else:
-                            raise ValueError("Time point not known!")
+                for well in well_paths:
 
-                        # append name of the cell line
-                        cell_line_names.append(cell_line_name)
+                    well_encodings = pandas.read_csv(path_to_encodings + well).values
+                    time = well_encodings[:, 1].astype('float32')
+                    encodings = well_encodings[:, 2:].astype('float32')
+
+                    if time_point == 'zero':
+                        # get number of encodings before drug administration
+                        n_times_before_drug = time[time < 0].shape[0]
+                        # append only the one right before drug (i.e. max grown cells)
+                        cell_line_encodings.append(encodings[n_times_before_drug - 1, :])
+                    elif time_point == 'end':
+                        # append only the last one (i.e. max drug effect)
+                        cell_line_encodings.append(encodings[time.shape[0] - 1, :])
+                    elif isinstance(time_point, int) or isinstance(time_point, float):
+                        # TODO: implement retrieving a particular time point if necessary
+                        pass
+                    else:
+                        raise ValueError("Time point not known!")
+
+                    # append name of the cell line
+                    cell_line_names.append(cell_line_name)
 
     assert len(cell_line_names) == len(cell_line_encodings)
-    cell_line_encodings = numpy.array(cell_line_encodings)
+    cell_line_encodings = numpy.array(cell_line_encodings).astype('float32')
 
     print('dataset shape:', cell_line_encodings.shape)
 
@@ -105,16 +108,16 @@ def perform_umap_and_plot_embeddings(time_point='zero', n=15, metric='euclidean'
     seaborn.set(font_scale=0.5)
     seaborn.color_palette('colorblind')
     seaborn.axes_style('whitegrid')
-    seaborn.scatterplot(x=embedding[:, 0], y=embedding[:, 1], hue=names, alpha=0.5, s=15)
+    seaborn.scatterplot(x=embedding[:, 0], y=embedding[:, 1], hue=names, alpha=0.6, s=10)
     pyplot.title('UMAP: n={}, metric={}, min_dist={}'.format(n, metric, min_dist), fontsize=8)
 
-    pyplot.savefig(save_to + 'umap_time=\'{}\'.pdf'.format(time_point))
+    pyplot.savefig(save_to + 'umap_time={}_n={}_metric={}.pdf'.format(time_point, n, metric))
     print('plot saved')
 
 
 if __name__ == '__main__':
 
-    if True:
+    if False:
         n = [15, 30, 60, 100, 200, 300]
         test_umap_stability(neighbors=n, metric='correlation')
         test_umap_stability(neighbors=n, metric='braycurtis')
@@ -123,7 +126,11 @@ if __name__ == '__main__':
         n = [5, 10, 15, 100, 150, 500]
         test_umap_stability(neighbors=n, metric='euclidean')
 
-    if False:
-        perform_umap_and_plot_embeddings(time_point='zero')
-        perform_umap_and_plot_embeddings(time_point='end')
+    # TODO: implement umap and plotting for single batches?
+
+    if True:
+        perform_umap_and_plot_embeddings(time_point='zero', n=50, metric='braycurtis')
+        perform_umap_and_plot_embeddings(time_point='end', n=50, metric='braycurtis')
+        perform_umap_and_plot_embeddings(time_point='zero', n=50, metric='euclidean')
+        perform_umap_and_plot_embeddings(time_point='end', n=50, metric='euclidean')
 
