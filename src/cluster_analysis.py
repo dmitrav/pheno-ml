@@ -105,6 +105,7 @@ def perform_umap_and_plot_embeddings(time_point='zero', n=15, metric='euclidean'
     embedding = reducer.fit_transform(scaled_data)
     print('umap transform with n = {} took {} s'.format(n, time.time() - start))
 
+    pyplot.figure()
     seaborn.set(font_scale=0.5)
     seaborn.color_palette('colorblind')
     seaborn.axes_style('whitegrid')
@@ -112,6 +113,7 @@ def perform_umap_and_plot_embeddings(time_point='zero', n=15, metric='euclidean'
     pyplot.title('UMAP: n={}, metric={}, min_dist={}'.format(n, metric, min_dist), fontsize=8)
 
     pyplot.savefig(save_to + 'umap_time={}_n={}_metric={}.pdf'.format(time_point, n, metric))
+    pyplot.close('all')
     print('plot saved')
 
 
