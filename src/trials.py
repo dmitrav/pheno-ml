@@ -12,7 +12,9 @@ from matplotlib import pyplot
 from scipy.spatial.distance import pdist
 from scipy.signal import savgol_filter
 
+from src import cluster_analysis
 
 if __name__ == "__main__":
 
     pass
+
