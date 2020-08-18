@@ -53,11 +53,11 @@ if __name__ == "__main__":
 
         move_files_to_another_folder(path, new_path)
 
-    if True:
+    if False:
 
         # old_data_path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images_2/batch_{}/"
-        old_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/"
-        new_data_path = "/Volumes/biol_imsb_sauer_1/users/Mauro/from_Andrei/encodings/batch_{}/"
+        old_data_path = "/Users/andreidm/ETH/projects/pheno-ml/res/distances/batch_{}/"
+        new_data_path = "/Volumes/biol_imsb_sauer_1/users/Mauro/from_Andrei/distances/batch_{}/"
         # new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/single_class/"
 
         for n in [1, 2, 3, 4, 5, 6, 7]:
@@ -75,11 +75,12 @@ if __name__ == "__main__":
                     old_path_full = batch_path + cell_line_folder + "/"
                     new_path_full = new_data_path.format(n) + cell_line_folder + "/"
 
-                    if os.path.exists(new_path_full):
-                        # if this folder exists, assume files are there already
-                        continue
-                    else:
-                        copy_files_to_a_folder(old_path_full, new_path_full, files_extension='.csv')
+                    # if os.path.exists(new_path_full):
+                    #     # if this folder exists, assume files are there already
+                    #     continue
+                    # else:
+
+                    copy_files_to_a_folder(old_path_full, new_path_full, files_extension='.json')
 
     if False:
 
