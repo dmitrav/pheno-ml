@@ -36,7 +36,7 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
 
                 # take only every second path to speed up calculations
                 well_paths = [file for file in os.listdir(path_to_encodings) if file.endswith('.csv')]
-                drug_names = [well_drug_map[file.replace('.csv', '')] for file in os.listdir(path_to_encodings) if file.endswith('.csv')]
+                well_names = [well_drug_map[file.replace('.csv', '')] for file in os.listdir(path_to_encodings) if file.endswith('.csv')]
 
                 for i in range(len(well_paths)):
 
@@ -50,12 +50,12 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
                         n_times_before_drug = time[time < 0].shape[0]
                         # append only the one right before drug (i.e. max grown cells)
                         cell_line_encodings.append(encodings[n_times_before_drug - 1, :])
-                        drug_names.append(drug_names[i])
+                        drug_names.append(well_names[i])
 
                     elif time_point == 'end':
                         # append only the last one (i.e. max drug effect)
                         cell_line_encodings.append(encodings[time.shape[0] - 1, :])
-                        drug_names.append(drug_names[i])
+                        drug_names.append(well_names[i])
 
                     elif isinstance(time_point, int) or isinstance(time_point, float):
                         # TODO: implement retrieving a particular time point if necessary
@@ -63,7 +63,12 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
                     else:
                         raise ValueError("Time point not known!")
 
-    assert len(drug_names) == len(cell_line_encodings)
+    try:
+        assert len(drug_names) == len(cell_line_encodings)
+    except AssertionError:
+        print('drug names size: {}'.format(len(drug_names)))
+        print('encodings size: {}'.format(len(cell_line_encodings)))
+
     cell_line_encodings = numpy.array(cell_line_encodings).astype('float32')
 
     print('single cell line dataset shape:', cell_line_encodings.shape)
@@ -201,13 +206,15 @@ def perform_umap_for_cell_line_and_plot_drug_effects(cell_line, time_point, n=5,
     embedding = reducer.fit_transform(scaled_data)
     print('umap transform with n = {} took {} s'.format(n, time.time() - start))
 
-    seaborn.scatterplot(x=embedding[:, 0], y=embedding[:, 1], hue=names) #  , alpha=0.5, s=15)
+    pyplot.figure()
+    seaborn.scatterplot(x=embedding[:, 0], y=embedding[:, 1], hue=names, alpha=0.8, s=20)
     pyplot.title('cell line: {}, time point: {}'.format(cell_line, time_point))
     pyplot.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     pyplot.tight_layout()
 
     # pyplot.show()
     pyplot.savefig(save_to + 'umap_{}_{}.pdf'.format(cell_line, time_point))
+    pyplot.close('all')
     print('plot saved')
 
 
@@ -230,7 +237,7 @@ if __name__ == '__main__':
 
     if True:
 
-        for cell_line in constants.cell_lines:
-            print('performing umap for {}...'.format(cell_line))
+        for cell_line in constants.cell_lines[2:]:
+            print('\nperforming umap for {}...'.format(cell_line))
             perform_umap_for_cell_line_and_plot_drug_effects(cell_line, 'zero')
             perform_umap_for_cell_line_and_plot_drug_effects(cell_line, 'end')
