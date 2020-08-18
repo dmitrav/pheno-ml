@@ -192,6 +192,8 @@ def perform_full_data_umap_and_plot_embeddings(time_point='zero', n=15, metric='
 def perform_umap_for_cell_line_and_plot_drug_effects(cell_line, time_point, n=5, metric='euclidean', min_dist=0.1, save_to='/Users/andreidm/ETH/projects/pheno-ml/res/umap_embeddings/cell_lines/'):
 
     data, names = collect_encodings_of_cell_line_by_time_points(cell_line, time_point=time_point)
+    n_drugs = len(set(names))
+    print('number of drugs: {}'.format(n_drugs))
 
     start = time.time()
     scaled_data = StandardScaler().fit_transform(data)
@@ -206,10 +208,15 @@ def perform_umap_for_cell_line_and_plot_drug_effects(cell_line, time_point, n=5,
     embedding = reducer.fit_transform(scaled_data)
     print('umap transform with n = {} took {} s'.format(n, time.time() - start))
 
+    if n_drugs > 18:
+        legend_font_size = 6
+    else:
+        legend_font_size = 10
+
     pyplot.figure()
     seaborn.scatterplot(x=embedding[:, 0], y=embedding[:, 1], hue=names, alpha=0.8, s=20)
     pyplot.title('cell line: {}, time point: {}'.format(cell_line, time_point))
-    pyplot.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+    pyplot.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=legend_font_size)
     pyplot.tight_layout()
 
     # pyplot.show()
