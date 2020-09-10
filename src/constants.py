@@ -1,5 +1,5 @@
 
-version = 'v.0.0.2'
+version = 'v.0.0.3'
 
 cell_lines = ['ACHN', 'HT29', 'M14',  # batch 1
               'IGROV1', 'MDAMB231', 'SF539',   # batch 2
