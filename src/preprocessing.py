@@ -84,6 +84,11 @@ def find_and_crop_remaining_images(input_path, output_path):
 
         if cell_line_folder.startswith('.'):
             continue
+
+        # debug: only process a single folder in a batch
+        elif cell_line_folder != 'OVCAR4_CL3_P1':
+            continue
+
         else:
             # make same directory in output folder
             if not os.path.exists(output_path + cell_line_folder):
@@ -131,11 +136,13 @@ if __name__ == "__main__":
 
     if True:
 
-        for n in [1, 2, 3, 4, 5, 6, 7]:
+        # for n in [1, 2, 3, 4, 5, 6, 7]:
+        for n in [4]:
             batch = "batch_{}/".format(str(n))
 
             input_path = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/" + batch
-            output_path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images/" + batch
+            # output_path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images/" + batch
+            output_path = "/Users/andreidm/ETH/projects/pheno-ml/data/cropped/" + batch
 
             p = Process(target=find_and_crop_remaining_images, args=(input_path, output_path))
             p.start()

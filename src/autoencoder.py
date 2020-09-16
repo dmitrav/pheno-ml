@@ -141,12 +141,10 @@ def plot_loss(history, n_epochs):
     pyplot.show()
 
 
-def train_autoencoder():
-
-    path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/"
+def train_autoencoder(path="/Users/andreidm/ETH/projects/pheno-ml/data/squeezed/training/", model_name='ae'):
 
     BATCH_SIZE = 32
-    EPOCHS = 20
+    EPOCHS = 7
 
     target_size = (128, 128)
 
@@ -161,15 +159,14 @@ def train_autoencoder():
                                                     shuffle=True, class_mode='input', batch_size=BATCH_SIZE)
 
     encoder, decoder, autoencoder = create_autoencoder_model(target_size)
-    autoencoder.compile(optimizer=Adam(learning_rate=0.0001), loss='binary_crossentropy')
+    autoencoder.compile(optimizer=Adam(learning_rate=0.001), loss='binary_crossentropy')
     autoencoder.summary()
 
-    if False:
+    if True:
         # if pretrained
         print("loading weights")
-        epoch_to_start_from = 1
-        latest = '/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae{}_at_{}.h5'.format(target_size[0],
-                                                                                          epoch_to_start_from)
+        epoch_to_start_from = 3
+        latest = '/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae_cropped_{}_at_{}.h5'.format(target_size[0], epoch_to_start_from)
         autoencoder.load_weights(latest)
 
         print("checking current encodings")
@@ -185,8 +182,7 @@ def train_autoencoder():
                               validation_data=val_batches,
                               validation_steps=val_batches.samples // BATCH_SIZE,
                               # validation_steps=10000,
-                              callbacks=[
-                                  ModelCheckpoint("../res/weights/ae{}".format(target_size[0]) + "_at_{epoch}.h5")])
+                              callbacks=[ModelCheckpoint("../res/weights/{}_{}".format(model_name, target_size[0]) + "_at_{epoch}.h5")])
 
     plot_loss(history, EPOCHS)
     visualize_reconstruction(val_batches, autoencoder)
@@ -302,6 +298,10 @@ def load_model_and_plot_results():
 
 
 if __name__ == "__main__":
+
+    path = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/'
+    model_name = 'ae_cropped'
+    train_autoencoder(path=path, model_name=model_name)
 
     pass
 

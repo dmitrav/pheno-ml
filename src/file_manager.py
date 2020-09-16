@@ -1,5 +1,6 @@
 
 import os, shutil, numpy
+from PIL import Image
 from tqdm import tqdm
 
 
@@ -55,10 +56,10 @@ if __name__ == "__main__":
 
     if False:
 
-        # old_data_path = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images_2/batch_{}/"
-        old_data_path = "/Users/andreidm/ETH/projects/pheno-ml/res/distances/batch_{}/"
-        new_data_path = "/Volumes/biol_imsb_sauer_1/users/Mauro/from_Andrei/distances/batch_{}/"
-        # new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/single_class/"
+        old_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/cropped/batch_{}/"
+        # old_data_path = "/Users/andreidm/ETH/projects/pheno-ml/res/distances/batch_{}/"
+        # new_data_path = "/Volumes/biol_imsb_sauer_1/users/Mauro/from_Andrei/distances/batch_{}/"
+        new_data_path = "/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/"
 
         for n in [1, 2, 3, 4, 5, 6, 7]:
 
@@ -73,14 +74,14 @@ if __name__ == "__main__":
                     print("copying from {}...".format(cell_line_folder))
 
                     old_path_full = batch_path + cell_line_folder + "/"
-                    new_path_full = new_data_path.format(n) + cell_line_folder + "/"
 
+                    # new_path_full = new_data_path.format(n) + cell_line_folder + "/"
                     # if os.path.exists(new_path_full):
                     #     # if this folder exists, assume files are there already
                     #     continue
                     # else:
 
-                    copy_files_to_a_folder(old_path_full, new_path_full, files_extension='.json')
+                    copy_files_to_a_folder(old_path_full, new_data_path)
 
     if False:
 
@@ -97,3 +98,21 @@ if __name__ == "__main__":
         my_folder = "/Volumes/biol_imsb_sauer_1/users/Andrei/cell_line_images_2/" + ending
 
         folders_have_equal_number_of_files(original_folder, my_folder)
+
+    if True:
+
+        path = "/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/"
+        for image in os.listdir(path):
+
+            # if "ACHN_CL3_P2_C15_1_2019y08m30d_00h21m" in image:
+            #     print(image)
+            # if "OVCAR4_CL3_P1_K19_1_2019y10m30d_13h46m" in image:
+            #     print(image)
+
+            try:
+                image = Image.open(path + image)
+            except Exception:
+                print(image)
+                break
+
+        print("all read successfully")
