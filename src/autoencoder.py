@@ -77,35 +77,35 @@ def visualize_reconstruction(data_batches, trained_ae):
     x_batch = next(data_batches)[0]
 
     pyplot.figure()
-    for i in range(0, 10):
-        pyplot.subplot(2, 10, i + 1)
+    for i in range(0, 7):
+        pyplot.subplot(2, 7, i + 1)
         pyplot.imshow(x_batch[i][:, :, 0], cmap='gray')
         pyplot.title("original")
 
-    for i in range(0, 10):
-        pyplot.subplot(2, 10, i + 11)
+    for i in range(0, 7):
+        pyplot.subplot(2, 7, i + 8)
         input_img = numpy.expand_dims(x_batch[i], axis=0)
         reconstructed_img = trained_ae(input_img)
         pyplot.imshow(reconstructed_img[0][:, :, 0], cmap='gray')
         pyplot.title("reconstruction")
 
-    pyplot.tight_layout()
+    # pyplot.tight_layout()
     pyplot.show()
 
 
-def visualize_results(data_batches, trained_ae):
+def visualize_results(data_batches, trained_ae, save_to):
 
     encoder = Model(trained_ae.input, trained_ae.layers[-2].output)
     x_batch = next(data_batches)[0]
 
-    pyplot.figure()
-    for i in range(0, 10):
-        pyplot.subplot(3, 10, i + 1)
+    pyplot.figure(figsize=(15,7))
+    for i in range(0, 7):
+        pyplot.subplot(3, 7, i + 1)
         pyplot.imshow(x_batch[i][:, :, 0], cmap='gray')
         pyplot.title("original")
 
-    for i in range(0, 10):
-        pyplot.subplot(3, 10, i + 11)
+    for i in range(0, 7):
+        pyplot.subplot(3, 7, i + 8)
         input_img = numpy.expand_dims(x_batch[i], axis=0)
         encoded_img = encoder(input_img)
 
@@ -116,15 +116,16 @@ def visualize_results(data_batches, trained_ae):
         pyplot.imshow(encoded_img, cmap='gray')
         pyplot.title("encodings")
 
-    for i in range(0, 10):
-        pyplot.subplot(3, 10, i + 21)
+    for i in range(0, 7):
+        pyplot.subplot(3, 7, i + 15)
         input_img = numpy.expand_dims(x_batch[i], axis=0)
         reconstructed_img = trained_ae(input_img)
         pyplot.imshow(reconstructed_img[0][:, :, 0], cmap='gray')
         pyplot.title("reconstruction")
 
     pyplot.tight_layout()
-    pyplot.show()
+    # pyplot.show()
+    pyplot.savefig(save_to+'reconstruction.pdf')
 
 
 def plot_loss(history, n_epochs):
@@ -144,7 +145,7 @@ def plot_loss(history, n_epochs):
 def train_autoencoder(path="/Users/andreidm/ETH/projects/pheno-ml/data/squeezed/training/", model_name='ae'):
 
     BATCH_SIZE = 32
-    EPOCHS = 7
+    EPOCHS = 4
 
     target_size = (128, 128)
 
@@ -159,13 +160,13 @@ def train_autoencoder(path="/Users/andreidm/ETH/projects/pheno-ml/data/squeezed/
                                                     shuffle=True, class_mode='input', batch_size=BATCH_SIZE)
 
     encoder, decoder, autoencoder = create_autoencoder_model(target_size)
-    autoencoder.compile(optimizer=Adam(learning_rate=0.001), loss='binary_crossentropy')
+    autoencoder.compile(optimizer=Adam(learning_rate=0.0003), loss='binary_crossentropy')
     autoencoder.summary()
 
     if True:
         # if pretrained
         print("loading weights")
-        epoch_to_start_from = 3
+        epoch_to_start_from = 14
         latest = '/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae_cropped_{}_at_{}.h5'.format(target_size[0], epoch_to_start_from)
         autoencoder.load_weights(latest)
 
@@ -175,14 +176,14 @@ def train_autoencoder(path="/Users/andreidm/ETH/projects/pheno-ml/data/squeezed/
         print("fitting further...")
 
     history = autoencoder.fit(train_batches,
-                              # steps_per_epoch=train_batches.samples // BATCH_SIZE,
-                              steps_per_epoch=10000,
+                              steps_per_epoch=train_batches.samples // BATCH_SIZE,
+                              # steps_per_epoch=10000,
                               epochs=EPOCHS,
                               verbose=1,
                               validation_data=val_batches,
                               validation_steps=val_batches.samples // BATCH_SIZE,
                               # validation_steps=10000,
-                              callbacks=[ModelCheckpoint("../res/weights/{}_{}".format(model_name, target_size[0]) + "_at_{epoch}.h5")])
+                              callbacks=[ModelCheckpoint("../res/weights/{}_{}".format(model_name, target_size[0]) + "_at_14+{epoch}.h5")])
 
     plot_loss(history, EPOCHS)
     visualize_reconstruction(val_batches, autoencoder)
@@ -193,7 +194,8 @@ def create_and_save_encodings_for_well(well_meta, image_paths, save_to_path):
     encodings = []
 
     _, _, autoencoder = create_autoencoder_model()
-    autoencoder.load_weights('/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae128_at_21_0.6800.h5')
+    # autoencoder.load_weights('/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae128_at_21_0.6800.h5')
+    autoencoder.load_weights('/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae_cropped_128_adam_at_16_0.6880.h5')
 
     encoder = Model(autoencoder.input, autoencoder.layers[-2].output)
 
@@ -223,10 +225,10 @@ def generate_encodings_for_batches():
 
     all_meta_data = pandas.read_csv("/Users/andreidm/ETH/projects/pheno-ml/data/pheno-ml-metadata.csv")
 
-    path_to_images = '/Users/andreidm/ETH/projects/pheno-ml/data/batch_{}/'
+    path_to_images = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/batch_{}/'
     path_to_plate_meta_data = '/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/{}.csv'
 
-    for batch in range(3, 8):
+    for batch in range(1, 8):
 
         print("\nprocessing batch {}...\n".format(batch))
 
@@ -274,10 +276,10 @@ def generate_encodings_for_batches():
                         create_and_save_encodings_for_well(meta_data, image_paths, save_to)
 
 
-def load_model_and_plot_results():
+def load_model_and_plot_results(save_to):
 
-    path = "/Users/andreidm/ETH/projects/pheno-ml/data/training/"
-    weights = '/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae128_at_21_0.6800.h5'
+    path = "/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/"
+    weights = '/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae_cropped_128_adam_at_16_0.6880.h5'
 
     BATCH_SIZE = 32
     target_size = (128, 128)
@@ -294,15 +296,22 @@ def load_model_and_plot_results():
     autoencoder.load_weights(weights)
 
     print("plotting images, encodings and reconstructions")
-    visualize_results(val_batches, autoencoder)
+    visualize_results(val_batches, autoencoder, save_to)
 
 
 if __name__ == "__main__":
 
-    path = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/'
-    model_name = 'ae_cropped'
-    train_autoencoder(path=path, model_name=model_name)
+    if False:
+        path = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/'
+        model_name = 'ae_cropped'
+        train_autoencoder(path=path, model_name=model_name)
 
-    pass
+    if True:
+        save_to = '/Users/andreidm/Library/Mobile Documents/com~apple~CloudDocs/ETHZ/papers_posters/pheno-ml/ICML21/img/'
+        load_model_and_plot_results(save_to)
+
+    if False:
+        generate_encodings_for_batches()
+
 
 

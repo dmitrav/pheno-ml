@@ -113,6 +113,5 @@ if __name__ == "__main__":
                 image = Image.open(path + image)
             except Exception:
                 print(image)
-                break
 
         print("all read successfully")

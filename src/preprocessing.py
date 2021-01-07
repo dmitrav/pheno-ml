@@ -86,7 +86,7 @@ def find_and_crop_remaining_images(input_path, output_path):
             continue
 
         # debug: only process a single folder in a batch
-        elif cell_line_folder != 'OVCAR4_CL3_P1':
+        elif cell_line_folder != 'SW620_CL1_P2':
             continue
 
         else:
@@ -137,7 +137,7 @@ if __name__ == "__main__":
     if True:
 
         # for n in [1, 2, 3, 4, 5, 6, 7]:
-        for n in [4]:
+        for n in [3]:
             batch = "batch_{}/".format(str(n))
 
             input_path = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/" + batch

@@ -487,10 +487,10 @@ def get_average_sample_encodings(path_to_encodings, sample_ids, sample_name):
 
 
 def calculate_distances_for_batch_and_save_results(batch_number, metric='euclidean', control_name='DMSO', save_distances=True, save_dist_plots=True, save_cv_plots=False,
-                                                   path_to_save_to='/Users/andreidm/ETH/projects/pheno-ml/res/distances/'):
+                                                   path_to_save_to='/Users/andreidm/ETH/projects/pheno-ml/res/distances/cropped/'):
 
     path_to_all_meta = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/"  # folder name, e.g. ACHN_CL3_P1
-    path_to_batches = "/Users/andreidm/ETH/projects/pheno-ml/data/"
+    path_to_batches = "/Users/andreidm/ETH/projects/pheno-ml/data/cropped/"
 
     print("\nbatch {} is being processed".format(batch_number))
     path_to_batch = path_to_batches + "batch_{}/".format(batch_number)
@@ -513,7 +513,7 @@ def calculate_distances_for_batch_and_save_results(batch_number, metric='euclide
             drug_names = drugs_data['Drug'].dropna().unique()
 
             for drug_name in drug_names:
-                print(drug_name, "is being processed")
+                print('\n', drug_name, "is being processed")
 
                 # add concentraions of this drug
                 drug_data = drugs_data[drugs_data['Drug'] == drug_name]
@@ -557,30 +557,30 @@ def calculate_distances_for_batch_and_save_results(batch_number, metric='euclide
                         con_key = str(round(unique_cons[i], 4))
                         drug_result[con_key] = all_dists[i]
 
-                    one_time_path_for_mauro = '/Volumes/biol_imsb_sauer_1/users/Mauro/from_Andrei/distances/'
+                    one_time_path_for_mauro = '/Volumes/biol_imsb_sauer_1/users/Mauro/from_Andrei/distances/cropped/'
                     current_path = one_time_path_for_mauro + 'batch_{}/'.format(batch_number) + '{}/'.format(cell_line_folder)
                     if not os.path.exists(current_path):
                         os.makedirs(current_path)
-                    with open(current_path + "{}.txt".format(drug_name), 'w') as file:
-                        file.write(drug_result.__str__())
+                    with open(current_path + "/{}_{}.json".format(drug_name, metric), 'w') as file:
+                        json.dump(drug_result, file)
 
                     current_path = path_to_save_to + 'batch_{}/'.format(batch_number) + '{}/'.format(cell_line_folder)
                     if not os.path.exists(current_path):
                         os.makedirs(current_path)
-                    with open(current_path + "/{}.json".format(drug_name), 'w') as file:
+                    with open(current_path + "/{}_{}.json".format(drug_name, metric), 'w') as file:
                         json.dump(drug_result, file)
 
-                    print('distances for drug {} saved'.format(drug_name))
+                    print('\ndistances for drug {} saved'.format(drug_name))
 
                 if save_dist_plots:
                     current_path = path_to_save_to + 'batch_{}/'.format(batch_number) + '{}/'.format(cell_line_folder)
                     if not os.path.exists(current_path):
                         os.makedirs(current_path)
 
-                    pyplot.savefig(current_path + "/{}.pdf".format(drug_name))
+                    pyplot.savefig(current_path + "/{}_{}.pdf".format(drug_name, metric))
                     # pyplot.show()
 
-                    print('distance plots for drug {} saved'.format(drug_name))
+                    print('\ndistance plots for drug {} saved'.format(drug_name))
 
                 if save_cv_plots:
                     # calculate cvs
@@ -617,8 +617,8 @@ def calculate_distances_for_batch_and_save_results(batch_number, metric='euclide
                         os.makedirs(current_path)
 
                     # pyplot.show()
-                    pyplot.savefig(current_path + "/CV_{}.pdf".format(drug_name))
-                    print('cv plots for drug {} saved'.format(drug_name))
+                    pyplot.savefig(current_path + "/CV_{}_{}.pdf".format(drug_name, metric))
+                    print('\ncv plots for drug {} saved'.format(drug_name))
 
                 pyplot.close('all')
 
@@ -655,8 +655,17 @@ if __name__ == "__main__":
 
         batches = [1, 2, 3, 4, 5, 6, 7]
 
+        # for batch in batches:
+        #     calculate_distances_for_batch_and_save_results(batch,
+        #                                                    metric='euclidean',
+        #                                                    save_distances=save_distances,
+        #                                                    save_dist_plots=save_dist_plots,
+        #                                                    save_cv_plots=save_cv_plots,
+        #                                                    path_to_save_to=path_to_save_to)
+
         for batch in batches:
             calculate_distances_for_batch_and_save_results(batch,
+                                                           metric='braycurtis',
                                                            save_distances=save_distances,
                                                            save_dist_plots=save_dist_plots,
                                                            save_cv_plots=save_cv_plots,

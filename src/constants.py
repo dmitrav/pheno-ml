@@ -1,5 +1,5 @@
 
-version = 'v.0.0.4'
+version = 'v.0.1.0'
 
 cell_lines = ['ACHN', 'HT29', 'M14',  # batch 1
               'IGROV1', 'MDAMB231', 'SF539',   # batch 2
@@ -8,3 +8,17 @@ cell_lines = ['ACHN', 'HT29', 'M14',  # batch 1
               'BT549', 'LOXIMVI', 'MALME3M',  # batch 5
               'A498', 'COLO205', 'HOP62',  # batch 6
               'HCT15', 'OVCAR5', 'T47D']  # batch 7
+
+drugs = ['Chlormethine', 'Clofarabine', 'Panzem-2-ME2', 'Pemetrexed', 'Asparaginase',
+         'Irinotecan', 'Gemcitabine', '17-AAG', 'Docetaxel', 'Erlotinib',
+         'UK5099', 'Fluorouracil', 'Everolimus', 'MEDICA 16', 'BPTES',
+         'Oligomycin A', 'Trametinib', 'Oxaliplatin', 'Rapamycin', 'Etomoxir',
+         'Lenvatinib', 'Oxfenicine', 'Mercaptopurine', 'Metformin', 'Omacetaxine',
+         'Cladribine', 'Paclitaxel', 'Methotrexate', 'PBS', 'Topotecan',
+         'YC-1', 'Decitabine']
+
+markers = ('.', ',', 'o', 'v', '^',
+           '<', '>', '1', '2', '3',
+           '4', '8', 's', 'p', 'P',
+           '*', 'h', 'H', '+', 'x',
+           'X', 'D', 'd')
