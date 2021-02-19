@@ -1,13 +1,16 @@
 
 import numpy, pandas, os, umap, seaborn, time
+
+from src.constants import user
+from src.constants import drugs as all_drug_names
+
 from sklearn.preprocessing import StandardScaler
 from matplotlib import pyplot
 from mpl_toolkits.mplot3d import Axes3D
-from src import constants
 from tqdm import tqdm
 
 
-def get_well_drug_mapping_for_cell_line(cell_line_folder, path_to_meta='/Users/andreidm/ETH/projects/pheno-ml/data/metadata/'):
+def get_well_drug_mapping_for_cell_line(cell_line_folder, keep_max_conc_only=False, path_to_meta='/Users/{}/ETH/projects/pheno-ml/data/metadata/'.format(user)):
     """ Retrieve a well-to-drug mapping for a cell line folder. """
 
     cell_line_meta = pandas.read_csv(path_to_meta + cell_line_folder + '.csv')
@@ -16,6 +19,24 @@ def get_well_drug_mapping_for_cell_line(cell_line_folder, path_to_meta='/Users/a
     concs = cell_line_meta['Final_conc_uM'].values
     del cell_line_meta
 
+    if keep_max_conc_only:
+
+        i = 0
+        while i < len(drugs):
+
+            if drugs[i] in [*all_drug_names, 'DMSO']:
+                # find max conc of the drug
+                drug_max_conc = max(concs[drugs == drugs[i]])
+                # remove a "column", if it's not related to max conc
+                if concs[i] != drug_max_conc:
+                    wells = numpy.delete(wells, i)
+                    drugs = numpy.delete(drugs, i)
+                    concs = numpy.delete(concs, i)
+                else:
+                    i += 1
+            else:
+                i += 1
+
     mapping = {}
     for i in range(wells.shape[0]):
         mapping[wells[i]] = (drugs[i], concs[i])
@@ -23,7 +44,7 @@ def get_well_drug_mapping_for_cell_line(cell_line_folder, path_to_meta='/Users/a
     return mapping
 
 
-def get_wells_of_single_drug_for_cell_line(drug, path_to_meta='/Users/andreidm/ETH/projects/pheno-ml/data/pheno-ml-metadata.csv'):
+def get_wells_of_single_drug_for_cell_line(drug, path_to_meta='/Users/{}/ETH/projects/pheno-ml/data/pheno-ml-metadata.csv'.format(user)):
 
     meta = pandas.read_csv(path_to_meta)
 
@@ -33,7 +54,7 @@ def get_wells_of_single_drug_for_cell_line(drug, path_to_meta='/Users/andreidm/E
     return wells, max_concentration
 
 
-def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='zero', path_to_batches="/Users/andreidm/ETH/projects/pheno-ml/data/cropped/"):
+def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='zero', keep_max_conc_only=False, path_to_batches="/Users/{}/ETH/projects/pheno-ml/data/cropped/".format(user)):
 
     drug_names = []
     drug_concs = []
@@ -46,13 +67,13 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
         for folder in os.listdir(path_to_batch):
             if cell_line_name in folder:
 
-                well_drug_map = get_well_drug_mapping_for_cell_line(folder)
+                well_drug_map = get_well_drug_mapping_for_cell_line(folder, keep_max_conc_only=keep_max_conc_only)
 
                 path_to_encodings = path_to_batch + folder + '/'
 
-                well_paths = [file for file in os.listdir(path_to_encodings) if file.endswith('.csv')]
-                well_drugs = [well_drug_map[file.replace('.csv', '')][0] for file in os.listdir(path_to_encodings) if file.endswith('.csv')]
-                well_concs = [well_drug_map[file.replace('.csv', '')][1] for file in os.listdir(path_to_encodings) if file.endswith('.csv')]
+                well_paths = [file for file in os.listdir(path_to_encodings) if file.endswith('.csv') and file.replace('.csv', '') in well_drug_map.keys()]
+                well_drugs = [well_drug_map[file.replace('.csv', '')][0] for file in os.listdir(path_to_encodings) if file.endswith('.csv') and file.replace('.csv', '') in well_drug_map.keys()]
+                well_concs = [well_drug_map[file.replace('.csv', '')][1] for file in os.listdir(path_to_encodings) if file.endswith('.csv') and file.replace('.csv', '') in well_drug_map.keys()]
 
                 for i in range(len(well_paths)):
 
@@ -88,8 +109,15 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
                         image_ids.extend([well_id for x in range(encodings.shape[0])])
                         exact_time_points.extend(time)
 
+                    elif time_point == 'last10':
+                        cell_line_encodings.extend(encodings[-10:, :])
+                        drug_names.extend([well_drugs[i] for x in range(encodings.shape[0]-10, encodings.shape[0])])
+                        drug_concs.extend([well_concs[i] for x in range(encodings.shape[0]-10, encodings.shape[0])])
+                        image_ids.extend([well_id for x in range(encodings.shape[0]-10, encodings.shape[0])])
+                        exact_time_points.extend(time[-10:])
+
                     elif isinstance(time_point, int) or isinstance(time_point, float):
-                        # TODO: implement retrieving a particular time point if necessary
+                        # implement retrieving a particular time point if necessary
                         pass
                     else:
                         raise ValueError("Time point not known!")
@@ -107,7 +135,7 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
     return cell_line_encodings, drug_names, drug_concs, image_ids, exact_time_points
 
 
-def collect_encodings_of_drug_by_time_points(drug, time_point='zero', path_to_batches="/Users/andreidm/ETH/projects/pheno-ml/data/cropped/"):
+def collect_encodings_of_drug_by_time_points(drug, time_point='zero', path_to_batches="/Users/{}/ETH/projects/pheno-ml/data/cropped/".format(user)):
 
     cell_line_names = []
     drug_encodings = []
@@ -182,7 +210,7 @@ def collect_encodings_of_drug_by_time_points(drug, time_point='zero', path_to_ba
     return drug_encodings, cell_line_names, drug_concs, image_ids, exact_time_points
 
 
-def collect_encodings_by_time_point(n_batches_to_use, time_point='zero', path_to_batches="/Users/andreidm/ETH/projects/pheno-ml/data/cropped/"):
+def collect_encodings_by_time_point(n_batches_to_use, time_point='zero', path_to_batches="/Users/{}/ETH/projects/pheno-ml/data/cropped/".format(user)):
 
     cell_line_names = []
     cell_line_encodings = []
@@ -237,7 +265,7 @@ def collect_encodings_by_time_point(n_batches_to_use, time_point='zero', path_to
 def test_umap_stability(neighbors=None, metrics=['euclidean'], min_dist=0.1):
     """ This function runs UMAP on different parameters to explore the stability of the method. """
 
-    save_plots_to = '/Users/andreidm/ETH/projects/pheno-ml/res/umap_embeddings/consistency_check/'
+    save_plots_to = '/Users/{}/ETH/projects/pheno-ml/res/umap_embeddings/consistency_check/'.format(user)
 
     if neighbors is None:
         neighbors = [15, 30, 60, 100, 200, 300]
@@ -274,7 +302,7 @@ def test_umap_stability(neighbors=None, metrics=['euclidean'], min_dist=0.1):
         print("plot saved to", save_plots_to)
 
 
-def perform_full_data_umap_and_plot_embeddings(time_point='zero', parameters=[(15, 'euclidean', 0.1)], save_to='/Users/andreidm/ETH/projects/pheno-ml/res/umap_embeddings/'):
+def perform_full_data_umap_and_plot_embeddings(time_point='zero', parameters=[(15, 'euclidean', 0.1)], save_to='/Users/{}/ETH/projects/pheno-ml/res/umap_embeddings/'.format(user)):
 
     data, names = collect_encodings_by_time_point(7, time_point=time_point)
 
@@ -303,7 +331,7 @@ def perform_full_data_umap_and_plot_embeddings(time_point='zero', parameters=[(1
         print('plot saved')
 
 
-def perform_umap_for_cell_line_and_plot_drug_effects(cell_line, time_point, n=15, metric='euclidean', min_dist=0.1, annotate_points=False, save_to='/Users/andreidm/ETH/projects/pheno-ml/res/umap_embeddings/cell_lines/'):
+def perform_umap_for_cell_line_and_plot_drug_effects(cell_line, time_point, n=15, metric='euclidean', min_dist=0.1, annotate_points=False, save_to='/Users/{}/ETH/projects/pheno-ml/res/umap_embeddings/cell_lines/'.format(user)):
 
     data, drug_names, drug_concs, image_ids, exact_tps = collect_encodings_of_cell_line_by_time_points(cell_line, time_point=time_point)
     unique_drug_names = list(set(drug_names))
@@ -467,7 +495,6 @@ if __name__ == '__main__':
         test_umap_stability(neighbors=n, metrics=metrics)
 
     if False:
-
         parameters = [
             (15, 'euclidean', 0.1)
         ]
@@ -476,17 +503,15 @@ if __name__ == '__main__':
         perform_full_data_umap_and_plot_embeddings(time_point='end', parameters=parameters, save_to='/Users/andreidm/ETH/projects/pheno-ml/res/umap_embeddings/whole_dataset/cropped/')
 
     if False:
-
         # for cell_line in tqdm(constants.cell_lines):
         for cell_line in ['ACHN']:
             print('\nperforming umap for {}...'.format(cell_line))
             # perform_umap_for_cell_line_and_plot_drug_effects(cell_line, time_point='zero', n=15, metric='euclidean')
             perform_umap_for_cell_line_and_plot_drug_effects(cell_line, time_point='end', n=15, metric='euclidean', annotate_points=True)
 
-    if True:
-
-        for cell_line in tqdm(constants.cell_lines):
-        # for cell_line in ['ACHN']:
+    if False:
+        # for cell_line in tqdm(constants.cell_lines):
+        for cell_line in ['ACHN']:
             print('\nperforming umap for {}...'.format(cell_line))
             perform_umap_for_cell_line_and_plot_drug_effects(cell_line, time_point='all', n=15, metric='euclidean', min_dist=1.,
                                                              annotate_points=False, save_to='/Users/andreidm/ETH/projects/pheno-ml/res/embeddings/')
@@ -506,6 +531,25 @@ if __name__ == '__main__':
             # only max concentrations are used there
             perform_umap_for_drug_and_plot_results(drug, time_point='all', n=5, metric='euclidean', annotate_points=False,
                                                    save_to='/Users/andreidm/ETH/projects/pheno-ml/res/embeddings/drugs/')
+    if True:
+
+        # for cell_line in tqdm(constants.cell_lines):
+        for cell_line in ['ACHN']:
+
+            data, drug_names, drug_concs, image_ids, exact_tps = collect_encodings_of_cell_line_by_time_points(cell_line, time_point='last10', keep_max_conc_only=True)
+            unique_drug_names = list(set(drug_names))
+            print('number of drugs: {}'.format(len(unique_drug_names)))
+
+            df = pandas.DataFrame({'drug': drug_names, 'conc': drug_concs, 'wells': image_ids, 'time': exact_tps})
+            df = pandas.concat([df, pandas.DataFrame(data)], axis=1)
+
+            # filter out DMSO?
+            df = df.loc[df['drug'] != 'DMSO', :]
+
+            # TODO:
+            #  - cluster the patterns,
+            #  - save the corresponding pics to the folders associated to clusters
+            print(df)
 
 
 
