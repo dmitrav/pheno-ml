@@ -702,7 +702,7 @@ if __name__ == '__main__':
             # compute min cluster size (how many images belong to the same drug)
             unique_drug_names = numpy.unique(drug_names)
             any_drug = [x for x in unique_drug_names if x != 'DMSO'][0]
-            min_cluster_size = numpy.sum(drug_names == any_drug)
+            min_cluster_size = int(numpy.sum(drug_names == any_drug))
 
             # filter out some 'DMSO', as it makes >30% of the whole dataset
             dmso_indices = numpy.where(drug_names == 'DMSO')[0]
