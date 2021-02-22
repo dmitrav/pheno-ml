@@ -1,6 +1,9 @@
 
-version = 'v.0.1.1'
+version = 'v.0.1.2'
 user = 'andreidm'
+
+cropped_data_path = '/Users/{}/ETH/projects/pheno-ml/data/cropped/'.format(user)
+
 
 cell_lines = ['ACHN', 'HT29', 'M14',  # batch 1
               'IGROV1', 'MDAMB231', 'SF539',   # batch 2

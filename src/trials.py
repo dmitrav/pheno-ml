@@ -17,29 +17,12 @@ from src import constants
 
 from src import cluster_analysis
 
+from datetime import datetime
+
 if __name__ == "__main__":
 
-    # meta = pandas.read_csv("/Users/andreidm/ETH/projects/pheno-ml/data/pheno-ml-metadata.csv")
+    data = pandas.read_csv('/Users/andreidm/ETH/projects/pheno-ml/data/cropped/batch_1/ACHN_CL3_P1/A4.csv')
 
-    x = numpy.linspace(0, 1, 30)
-    z = x
-    y = x ** 2 + 1
-
-    for cmap in ['flag', 'prism', 'ocean', 'gist_earth', 'terrain', 'gist_stern',
-            'gnuplot', 'gnuplot2', 'CMRmap', 'cubehelix', 'brg',
-            'gist_rainbow', 'rainbow', 'jet', 'nipy_spectral', 'gist_ncar']:
-
-
-        fig = pyplot.figure()
-        ax = fig.add_subplot(111, projection='3d')
-
-        scatter = ax.scatter(x, y, z, c=[x for x in range(len(x))], cmap=cmap)
-
-        ax.legend(labels=[str(x) for x in x])
-        ax.grid()
-
-        pyplot.title(cmap)
-        pyplot.show()
-
-    print()
-
+    print(data['Date'][0])
+    date_obj = datetime.strptime(data['Date'][0], '%Y-%m-%d %H:%M:%S')
+    datetime.strftime(date_obj, '%Yy%mm%dd_%Hh%Mm')

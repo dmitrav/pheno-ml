@@ -1,13 +1,18 @@
 
-import numpy, pandas, os, umap, seaborn, time
+import numpy, pandas, os, umap, seaborn, time, hdbscan
 
-from src.constants import user
+from src.constants import user, cropped_data_path
 from src.constants import drugs as all_drug_names
 
+
 from sklearn.preprocessing import StandardScaler
+from scipy.cluster.hierarchy import fcluster, linkage
 from matplotlib import pyplot
+from sklearn.metrics import silhouette_score
 from mpl_toolkits.mplot3d import Axes3D
 from tqdm import tqdm
+from datetime import datetime
+from shutil import copyfile
 
 
 def get_well_drug_mapping_for_cell_line(cell_line_folder, keep_max_conc_only=False, path_to_meta='/Users/{}/ETH/projects/pheno-ml/data/metadata/'.format(user)):
@@ -59,6 +64,7 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
     drug_names = []
     drug_concs = []
     cell_line_encodings = []
+    image_dates = []
     exact_time_points = []
     image_ids = []  # plate + well
 
@@ -80,6 +86,7 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
                     well_id = folder + '_' + well_paths[i].split('.')[0]
 
                     well_encodings = pandas.read_csv(path_to_encodings + well_paths[i]).values
+                    well_dates = well_encodings[:, 0]
                     time = well_encodings[:, 1].astype('float32')
                     encodings = well_encodings[:, 2:].astype('float32')
                     del well_encodings
@@ -89,6 +96,7 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
                         n_times_before_drug = time[time < 0].shape[0]
                         # append only the one right before drug (i.e. max grown cells)
                         cell_line_encodings.append(encodings[n_times_before_drug - 1, :])
+                        image_dates.append(well_dates[n_times_before_drug - 1])
                         drug_names.append(well_drugs[i])
                         drug_concs.append(well_concs[i])
                         image_ids.append(well_id)
@@ -97,6 +105,7 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
                     elif time_point == 'end':
                         # append only the last one (i.e. max drug effect)
                         cell_line_encodings.append(encodings[time.shape[0] - 1, :])
+                        image_dates.append(well_dates[time.shape[0] - 1])
                         drug_names.append(well_drugs[i])
                         drug_concs.append(well_concs[i])
                         image_ids.append(well_id)
@@ -104,6 +113,7 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
 
                     elif time_point == 'all':
                         cell_line_encodings.extend(encodings)
+                        image_dates.extend(well_dates)
                         drug_names.extend([well_drugs[i] for x in range(encodings.shape[0])])
                         drug_concs.extend([well_concs[i] for x in range(encodings.shape[0])])
                         image_ids.extend([well_id for x in range(encodings.shape[0])])
@@ -111,6 +121,7 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
 
                     elif time_point == 'last10':
                         cell_line_encodings.extend(encodings[-10:, :])
+                        image_dates.extend(well_dates[-10:])
                         drug_names.extend([well_drugs[i] for x in range(encodings.shape[0]-10, encodings.shape[0])])
                         drug_concs.extend([well_concs[i] for x in range(encodings.shape[0]-10, encodings.shape[0])])
                         image_ids.extend([well_id for x in range(encodings.shape[0]-10, encodings.shape[0])])
@@ -132,7 +143,7 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
 
     print('single cell line dataset shape:', cell_line_encodings.shape)
 
-    return cell_line_encodings, drug_names, drug_concs, image_ids, exact_time_points
+    return cell_line_encodings, drug_names, drug_concs, image_ids, exact_time_points, image_dates
 
 
 def collect_encodings_of_drug_by_time_points(drug, time_point='zero', path_to_batches="/Users/{}/ETH/projects/pheno-ml/data/cropped/".format(user)):
@@ -333,7 +344,7 @@ def perform_full_data_umap_and_plot_embeddings(time_point='zero', parameters=[(1
 
 def perform_umap_for_cell_line_and_plot_drug_effects(cell_line, time_point, n=15, metric='euclidean', min_dist=0.1, annotate_points=False, save_to='/Users/{}/ETH/projects/pheno-ml/res/umap_embeddings/cell_lines/'.format(user)):
 
-    data, drug_names, drug_concs, image_ids, exact_tps = collect_encodings_of_cell_line_by_time_points(cell_line, time_point=time_point)
+    data, drug_names, drug_concs, image_ids, exact_tps, _ = collect_encodings_of_cell_line_by_time_points(cell_line, time_point=time_point)
     unique_drug_names = list(set(drug_names))
     print('number of drugs: {}'.format(len(unique_drug_names)))
 
@@ -486,6 +497,51 @@ def perform_umap_for_drug_and_plot_results(drug, time_point='end', n=15, metric=
     print('plot saved')
 
 
+def save_clustered_image_examples(clustering, image_ids, image_dates, drug_names, cell_line, save_to, N=10):
+    """ This method saves N random examples of each cluster """
+
+    clusters = numpy.unique(clustering.labels_)
+    for cluster in clusters:
+
+        if not os.path.exists(save_to + '{}/{}'.format(cell_line, cluster)):
+            os.makedirs(save_to + '{}/{}'.format(cell_line, cluster))
+
+        cluster_indices = numpy.where(clustering.labels_ == cluster)[0]
+        images_to_save = numpy.array(image_ids)[cluster_indices]
+        dates_to_save = numpy.array(image_dates)[cluster_indices]
+        drugs_to_save = numpy.array(drug_names)[cluster_indices]
+
+        if images_to_save.shape[0] > N:
+            random_indices = numpy.random.choice([x for x in range(len(images_to_save))], size=N, replace=False)
+            images_to_save = images_to_save[random_indices]
+            dates_to_save = dates_to_save[random_indices]
+            drugs_to_save = drugs_to_save[random_indices]
+
+        for i, image in enumerate(images_to_save):
+            image_folder = '_'.join(image.split('_')[:-1])
+            image_key = image.split('_')[-1]
+
+            # find related images
+            for batch in range(1,8):
+
+                batch_path = cropped_data_path + 'batch_{}/'.format(batch)
+                if image_folder in os.listdir(batch_path):
+
+                    date_obj = datetime.strptime(dates_to_save[i], '%Y-%m-%d %H:%M:%S')
+                    image_date = datetime.strftime(date_obj, '%Yy%mm%dd_%Hh%Mm')
+
+                    sought_image = [x for x in os.listdir(batch_path+image_folder) if image_key in x and image_date in x][0]
+
+                    # save this image
+                    copyfile(batch_path + image_folder + '/{}'.format(sought_image),
+                             save_to + '{}/{}/{}_{}'.format(cell_line, cluster, drugs_to_save[i], sought_image))
+
+                    break
+
+                else:
+                    continue
+
+
 if __name__ == '__main__':
 
     if False:
@@ -533,23 +589,43 @@ if __name__ == '__main__':
                                                    save_to='/Users/andreidm/ETH/projects/pheno-ml/res/embeddings/drugs/')
     if True:
 
+        SEED = 4
+        numpy.random.seed(SEED)
+        save_images_to = '/Users/{}/ETH/projects/pheno-ml/res/clustering_within_cell_lines/'.format(user)
+
         # for cell_line in tqdm(constants.cell_lines):
         for cell_line in ['ACHN']:
 
-            data, drug_names, drug_concs, image_ids, exact_tps = collect_encodings_of_cell_line_by_time_points(cell_line, time_point='last10', keep_max_conc_only=True)
+            print('\nResults for {}:'.format(cell_line))
+
+            data, drug_names, drug_concs, image_ids, exact_tps, dates = collect_encodings_of_cell_line_by_time_points(
+                cell_line, time_point='last10', keep_max_conc_only=True)  # there's only cytotoxic effect at max conc
+
             unique_drug_names = list(set(drug_names))
             print('number of drugs: {}'.format(len(unique_drug_names)))
 
             df = pandas.DataFrame({'drug': drug_names, 'conc': drug_concs, 'wells': image_ids, 'time': exact_tps})
             df = pandas.concat([df, pandas.DataFrame(data)], axis=1)
 
-            # filter out DMSO?
-            df = df.loc[df['drug'] != 'DMSO', :]
+            # set min cluster size
+            any_drug = [x for x in df['drug'].unique() if x != 'DMSO'][0]
+            min_cluster_size = df.loc[df['drug'] == any_drug, :].shape[0]
+            reduced_dims = df.shape[1] / 10  # to get a matrix of around (2000, 400)
+
+            reducer = umap.UMAP(n_components=reduced_dims, metric='euclidean', n_neighbors=min_cluster_size, min_dist=0.1, random_state=SEED)
+            embeddings = reducer.fit_transform(df.iloc[:, 4:].values)
+
+            # HDBSCAN
+            clusterer = hdbscan.HDBSCAN(metric='euclidean', min_samples=1, min_cluster_size=min_cluster_size, allow_single_cluster=False)
+            clusterer.fit(embeddings)
+
+            total = clusterer.labels_.max() + 1
+            print('n clusters={}'.format(total))
+            save_clustered_image_examples(clusterer, image_ids, dates, drug_names, cell_line, save_images_to)
 
             # TODO:
-            #  - cluster the patterns,
-            #  - save the corresponding pics to the folders associated to clusters
-            print(df)
+            #  - plot heatmaps with clustering results
+            #  - plot how many images are in each cluster
 
 
 
