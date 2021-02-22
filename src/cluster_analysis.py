@@ -3,7 +3,7 @@ import numpy, pandas, os, umap, seaborn, time, hdbscan
 
 from src.constants import user, cropped_data_path
 from src.constants import drugs as all_drug_names
-
+from src import constants
 
 from sklearn.preprocessing import StandardScaler
 from scipy.cluster.hierarchy import fcluster, linkage
@@ -140,6 +140,11 @@ def collect_encodings_of_cell_line_by_time_points(cell_line_name, time_point='ze
         print('encodings size: {}'.format(len(cell_line_encodings)))
 
     cell_line_encodings = numpy.array(cell_line_encodings).astype('float32')
+    drug_names = numpy.array(drug_names)
+    drug_concs = numpy.array(drug_concs)
+    image_ids = numpy.array(image_ids)
+    exact_time_points = numpy.array(exact_time_points)
+    image_dates = numpy.array(image_dates)
 
     print('single cell line dataset shape:', cell_line_encodings.shape)
 
@@ -497,16 +502,16 @@ def perform_umap_for_drug_and_plot_results(drug, time_point='end', n=15, metric=
     print('plot saved')
 
 
-def save_clustered_image_examples(clustering, image_ids, image_dates, drug_names, cell_line, save_to, N=20):
+def save_clustered_image_examples(labels, image_ids, image_dates, drug_names, cell_line, save_to, N=20):
     """ This method saves N random examples of each cluster """
 
-    clusters = numpy.unique(clustering.labels_)
+    clusters = numpy.unique(labels)
     for cluster in clusters:
 
         if not os.path.exists(save_to + '{}/{}'.format(cell_line, cluster)):
             os.makedirs(save_to + '{}/{}'.format(cell_line, cluster))
 
-        cluster_indices = numpy.where(clustering.labels_ == cluster)[0]
+        cluster_indices = numpy.where(labels == cluster)[0]
         images_to_save = numpy.array(image_ids)[cluster_indices]
         dates_to_save = numpy.array(image_dates)[cluster_indices]
         drugs_to_save = numpy.array(drug_names)[cluster_indices]
@@ -543,7 +548,30 @@ def save_clustered_image_examples(clustering, image_ids, image_dates, drug_names
     print('image examples saved')
 
 
+def get_best_t_parameter(Z, embeddings, max_number_of_clusters, print_info=False):
+    """ Find best value of t parameter of Nearest Point Algorithm:
+        - the one that gives the highest silhoette score """
+
+    scores = []
+    ts = []
+    # minimum of three: no effect, growth arrest, cell deaths
+    for t in (3, max_number_of_clusters+1):
+        labels = fcluster(Z, t=t, criterion='maxclust')
+        score = silhouette_score(embeddings, labels)
+
+        scores.append(score)
+        ts.append(t)
+
+    max_score_index = scores.index(max(scores))
+    if print_info:
+        print('max score={}, t={}'.format(scores[max_score_index], t[max_score_index]))
+
+    return ts[max_score_index]
+
+
 def get_best_min_samples_parameter(embeddings, min_cluster_size, print_info=False):
+    """ Find best value of min_samples parameter of HDBSCAN clustering algorithm:
+        - the one that minimizes noise (the '-1' cluster) """
 
     percent_of_noise = []
     min_samples = []
@@ -569,16 +597,16 @@ def get_best_min_samples_parameter(embeddings, min_cluster_size, print_info=Fals
     return min_samples[min_index]
 
 
-def plot_cluster_capacity(clusterer, cell_line, save_to):
+def plot_cluster_capacity(labels, cell_line, save_to):
 
     if not os.path.exists(save_to + '{}'.format(cell_line)):
         os.makedirs(save_to + '{}'.format(cell_line))
 
-    clusters = sorted(list(set(clusterer.labels_)))
+    clusters = sorted(list(set(labels)))
     cluster_capacity = pandas.DataFrame({'cluster': clusters, 'capacity': [0 for x in clusters]})
     for cluster in clusters:
         cluster_capacity.loc[cluster_capacity['cluster'] == cluster, 'capacity'] += sum(
-            [x == cluster for x in clusterer.labels_])
+            [x == cluster for x in labels])
 
     pyplot.figure()
     seaborn.barplot(x='cluster', y='capacity', data=cluster_capacity)
@@ -591,15 +619,15 @@ def plot_cluster_capacity(clusterer, cell_line, save_to):
     print('cluster capacity plot saved')
 
 
-def plot_drug_cluster_heatmap(clusterer, drug_names, cell_line, save_to):
+def plot_drug_cluster_heatmap(labels, drug_names, cell_line, save_to):
 
     if not os.path.exists(save_to + '{}'.format(cell_line)):
         os.makedirs(save_to + '{}'.format(cell_line))
 
-    clusters = sorted(list(set(clusterer.labels_)))
+    clusters = sorted(list(set(labels)))
 
     drug_cluster_counts = pandas.DataFrame(0, columns=clusters, index=unique_drug_names)
-    for i, cluster in enumerate(clusterer.labels_):
+    for i, cluster in enumerate(labels):
         drug_cluster_counts.loc[drug_names[i], cluster] += 1
 
     pyplot.figure(figsize=(10, 6))
@@ -659,6 +687,7 @@ if __name__ == '__main__':
     if True:
 
         SEED = 4
+        use_HDBSCAN = False
         numpy.random.seed(SEED)
         save_images_to = '/Users/{}/ETH/projects/pheno-ml/res/clustering_within_cell_lines/'.format(user)
 
@@ -670,31 +699,49 @@ if __name__ == '__main__':
             data, drug_names, drug_concs, image_ids, exact_tps, dates = collect_encodings_of_cell_line_by_time_points(
                 cell_line, time_point='last10', keep_max_conc_only=True)  # there's only cytotoxic effect at max conc
 
-            unique_drug_names = list(set(drug_names))
+            # compute min cluster size (how many images belong to the same drug)
+            unique_drug_names = numpy.unique(drug_names)
+            any_drug = [x for x in unique_drug_names if x != 'DMSO'][0]
+            min_cluster_size = numpy.sum(drug_names == any_drug)
+
+            # filter out some 'DMSO', as it makes >30% of the whole dataset
+            dmso_indices = numpy.where(drug_names == 'DMSO')[0]
+            data = numpy.delete(data, dmso_indices[min_cluster_size:], 0)
+            drug_names = numpy.delete(drug_names, dmso_indices[min_cluster_size:])
+            drug_concs = numpy.delete(drug_concs, dmso_indices[min_cluster_size:])
+            image_ids = numpy.delete(image_ids, dmso_indices[min_cluster_size:])
+            exact_tps = numpy.delete(exact_tps, dmso_indices[min_cluster_size:])
+            dates = numpy.delete(dates, dmso_indices[min_cluster_size:])
+
             print('number of drugs: {}'.format(len(unique_drug_names)))
 
             df = pandas.DataFrame({'drug': drug_names, 'conc': drug_concs, 'wells': image_ids, 'time': exact_tps})
             df = pandas.concat([df, pandas.DataFrame(data)], axis=1)
 
-            # set min cluster size
-            any_drug = [x for x in df['drug'].unique() if x != 'DMSO'][0]
-            min_cluster_size = df.loc[df['drug'] == any_drug, :].shape[0]
-            reduced_dims = df.shape[1] / 10  # to get a matrix of around (2000, 400)
-
+            reduced_dims = df.shape[1] / 10  # to get a matrix of around (1300, 400)
             reducer = umap.UMAP(n_components=reduced_dims, metric='euclidean', n_neighbors=min_cluster_size, min_dist=0.1, random_state=SEED)
             embeddings = reducer.fit_transform(df.iloc[:, 4:].values)
 
-            min_samples = get_best_min_samples_parameter(embeddings, min_cluster_size)
+            if use_HDBSCAN:
+                min_samples = get_best_min_samples_parameter(embeddings, min_cluster_size)
+                clusterer = hdbscan.HDBSCAN(metric='euclidean', min_samples=min_samples, min_cluster_size=min_cluster_size, allow_single_cluster=False)
+                clusterer.fit(embeddings)
+                labels = clusterer.labels_
 
-            # HDBSCAN
-            clusterer = hdbscan.HDBSCAN(metric='euclidean', min_samples=min_samples, min_cluster_size=min_cluster_size, allow_single_cluster=False)
-            clusterer.fit(embeddings)
+                total = numpy.max(labels) + 1
+                noise = int(numpy.sum(labels == -1) / len(labels) * 100)
+                print('min_samples={}, n clusters={}'.format(min_samples, total))
+                print('noise={}%\n'.format(noise))
+            else:
+                # use Nearest Point Algorithm
+                Z = linkage(embeddings)  # Euclidean is default
+                t = get_best_t_parameter(Z, embeddings, len(unique_drug_names))
+                labels = fcluster(Z, t=t, criterion='maxclust')
 
-            total = clusterer.labels_.max() + 1
-            noise = int((clusterer.labels_ == -1).sum() / len(clusterer.labels_) * 100)
-            print('min_samples={}, n clusters={}'.format(min_samples, total))
-            print('noise={}%\n'.format(noise))
+                score = round(float(silhouette_score(embeddings, labels)), 3)
+                print('n clusters={}, score={}\n'.format(t, score))
 
-            plot_cluster_capacity(clusterer, cell_line, save_images_to)
-            plot_drug_cluster_heatmap(clusterer, drug_names, cell_line, save_images_to)
-            save_clustered_image_examples(clusterer, image_ids, dates, drug_names, cell_line, save_images_to)
+            # plot and save results
+            plot_cluster_capacity(labels, cell_line, save_images_to)
+            plot_drug_cluster_heatmap(labels, drug_names, cell_line, save_images_to)
+            save_clustered_image_examples(labels, image_ids, dates, drug_names, cell_line, save_images_to)
