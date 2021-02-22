@@ -568,6 +568,24 @@ def get_best_min_samples_parameter(embeddings, min_cluster_size, print_info=Fals
     return min_samples[min_index]
 
 
+def plot_cluster_capacity(clusterer, save_to):
+
+    clusters = sorted(list(set(clusterer.labels_)))
+    cluster_capacity = pandas.DataFrame({'cluster': clusters, 'capacity': [0 for x in clusters]})
+    for cluster in clusters:
+        cluster_capacity.loc[cluster_capacity['cluster'] == cluster, 'capacity'] += sum(
+            [x == cluster for x in clusterer.labels_])
+
+    pyplot.figure()
+    seaborn.barplot(x='cluster', y='capacity', data=cluster_capacity)
+    pyplot.xlabel('Cluster')
+    pyplot.ylabel('Number of images')
+    pyplot.title('Cluster capacity')
+    pyplot.grid()
+    # pyplot.show()
+    pyplot.savefig(save_to + 'cluster_capacity.pdf')
+
+
 if __name__ == '__main__':
 
     if False:
@@ -648,7 +666,6 @@ if __name__ == '__main__':
             clusterer.fit(embeddings)
 
             # TODO:
-            #  - plot how many images are in each cluster (barplot)
             #  - plot heatmaps with clustering results
 
             total = clusterer.labels_.max() + 1
@@ -656,6 +673,7 @@ if __name__ == '__main__':
             print('min_samples={}, n clusters={}'.format(min_samples, total))
             print('noise={}%\n'.format(noise))
 
+            plot_cluster_capacity(clusterer, save_images_to + '{}/'.format(cell_line))
             save_clustered_image_examples(clusterer, image_ids, dates, drug_names, cell_line, save_images_to)
 
 
