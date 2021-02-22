@@ -540,6 +540,7 @@ def save_clustered_image_examples(clustering, image_ids, image_dates, drug_names
 
                 else:
                     continue
+    print('image examples saved')
 
 
 def get_best_min_samples_parameter(embeddings, min_cluster_size, print_info=False):
@@ -568,7 +569,10 @@ def get_best_min_samples_parameter(embeddings, min_cluster_size, print_info=Fals
     return min_samples[min_index]
 
 
-def plot_cluster_capacity(clusterer, save_to):
+def plot_cluster_capacity(clusterer, cell_line, save_to):
+
+    if not os.path.exists(save_to + '{}'.format(cell_line)):
+        os.makedirs(save_to + '{}'.format(cell_line))
 
     clusters = sorted(list(set(clusterer.labels_)))
     cluster_capacity = pandas.DataFrame({'cluster': clusters, 'capacity': [0 for x in clusters]})
@@ -580,10 +584,31 @@ def plot_cluster_capacity(clusterer, save_to):
     seaborn.barplot(x='cluster', y='capacity', data=cluster_capacity)
     pyplot.xlabel('Cluster')
     pyplot.ylabel('Number of images')
-    pyplot.title('Cluster capacity')
+    pyplot.title('Cluster capacity for {} cell line'.format(cell_line))
     pyplot.grid()
     # pyplot.show()
-    pyplot.savefig(save_to + 'cluster_capacity.pdf')
+    pyplot.savefig(save_to + '{}/cluster_capacity_{}.pdf'.format(cell_line, cell_line))
+    print('cluster capacity plot saved')
+
+
+def plot_drug_cluster_heatmap(clusterer, drug_names, cell_line, save_to):
+
+    if not os.path.exists(save_to + '{}'.format(cell_line)):
+        os.makedirs(save_to + '{}'.format(cell_line))
+
+    clusters = sorted(list(set(clusterer.labels_)))
+
+    drug_cluster_counts = pandas.DataFrame(0, columns=clusters, index=unique_drug_names)
+    for i, cluster in enumerate(clusterer.labels_):
+        drug_cluster_counts.loc[drug_names[i], cluster] += 1
+
+    pyplot.figure(figsize=(10, 6))
+    seaborn.heatmap(drug_cluster_counts, yticklabels=unique_drug_names)
+    pyplot.title("Cluster enrichments for {} cell line".format(cell_line))
+    pyplot.tight_layout()
+    # pyplot.show()
+    pyplot.savefig(save_to + '{}/drug_cluster_{}.pdf'.format(cell_line, cell_line))
+    print('drug cluster heatmap saved')
 
 
 if __name__ == '__main__':
@@ -637,8 +662,8 @@ if __name__ == '__main__':
         numpy.random.seed(SEED)
         save_images_to = '/Users/{}/ETH/projects/pheno-ml/res/clustering_within_cell_lines/'.format(user)
 
-        # for cell_line in tqdm(constants.cell_lines):
-        for cell_line in ['ACHN']:
+        for cell_line in tqdm(constants.cell_lines):
+        # for cell_line in ['ACHN']:
 
             print('\nResults for {}:'.format(cell_line))
 
@@ -665,17 +690,11 @@ if __name__ == '__main__':
             clusterer = hdbscan.HDBSCAN(metric='euclidean', min_samples=min_samples, min_cluster_size=min_cluster_size, allow_single_cluster=False)
             clusterer.fit(embeddings)
 
-            # TODO:
-            #  - plot heatmaps with clustering results
-
             total = clusterer.labels_.max() + 1
             noise = int((clusterer.labels_ == -1).sum() / len(clusterer.labels_) * 100)
             print('min_samples={}, n clusters={}'.format(min_samples, total))
             print('noise={}%\n'.format(noise))
 
-            plot_cluster_capacity(clusterer, save_images_to + '{}/'.format(cell_line))
+            plot_cluster_capacity(clusterer, cell_line, save_images_to)
+            plot_drug_cluster_heatmap(clusterer, drug_names, cell_line, save_images_to)
             save_clustered_image_examples(clusterer, image_ids, dates, drug_names, cell_line, save_images_to)
-
-
-
-

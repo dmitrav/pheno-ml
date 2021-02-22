@@ -21,8 +21,6 @@ from datetime import datetime
 
 if __name__ == "__main__":
 
-    data = pandas.read_csv('/Users/andreidm/ETH/projects/pheno-ml/data/cropped/batch_1/ACHN_CL3_P1/A4.csv')
+    heatmap = pandas.DataFrame(0, columns=['c1', 'c2', 'c3'], index=['r1', 'r2', 'r3'])
 
-    print(data['Date'][0])
-    date_obj = datetime.strptime(data['Date'][0], '%Y-%m-%d %H:%M:%S')
-    datetime.strftime(date_obj, '%Yy%mm%dd_%Hh%Mm')
+    print(heatmap)
