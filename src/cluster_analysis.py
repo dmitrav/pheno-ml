@@ -497,7 +497,7 @@ def perform_umap_for_drug_and_plot_results(drug, time_point='end', n=15, metric=
     print('plot saved')
 
 
-def save_clustered_image_examples(clustering, image_ids, image_dates, drug_names, cell_line, save_to, N=10):
+def save_clustered_image_examples(clustering, image_ids, image_dates, drug_names, cell_line, save_to, N=20):
     """ This method saves N random examples of each cluster """
 
     clusters = numpy.unique(clustering.labels_)
@@ -540,6 +540,32 @@ def save_clustered_image_examples(clustering, image_ids, image_dates, drug_names
 
                 else:
                     continue
+
+
+def get_best_min_samples_parameter(embeddings, min_cluster_size, print_info=False):
+
+    percent_of_noise = []
+    min_samples = []
+    for value in range(1, min_cluster_size + 1):
+        # HDBSCAN
+        clusterer = hdbscan.HDBSCAN(metric='euclidean', min_samples=value, min_cluster_size=min_cluster_size,
+                                    allow_single_cluster=False)
+        clusterer.fit(embeddings)
+
+        total = clusterer.labels_.max() + 1
+        noise = int((clusterer.labels_ == -1).sum() / len(clusterer.labels_) * 100)
+
+        percent_of_noise.append(noise)
+        min_samples.append(value)
+
+        if print_info:
+            print('min_samples={}, n clusters={}'.format(value, total))
+            print('noise={}%\n'.format(noise))
+
+    # find an index of the smallest percent of noise
+    min_index = percent_of_noise.index(min(percent_of_noise))
+    # return the corresponding min_samples value
+    return min_samples[min_index]
 
 
 if __name__ == '__main__':
@@ -615,17 +641,23 @@ if __name__ == '__main__':
             reducer = umap.UMAP(n_components=reduced_dims, metric='euclidean', n_neighbors=min_cluster_size, min_dist=0.1, random_state=SEED)
             embeddings = reducer.fit_transform(df.iloc[:, 4:].values)
 
+            min_samples = get_best_min_samples_parameter(embeddings, min_cluster_size)
+
             # HDBSCAN
-            clusterer = hdbscan.HDBSCAN(metric='euclidean', min_samples=1, min_cluster_size=min_cluster_size, allow_single_cluster=False)
+            clusterer = hdbscan.HDBSCAN(metric='euclidean', min_samples=min_samples, min_cluster_size=min_cluster_size, allow_single_cluster=False)
             clusterer.fit(embeddings)
 
+            # TODO:
+            #  - plot how many images are in each cluster (barplot)
+            #  - plot heatmaps with clustering results
+
             total = clusterer.labels_.max() + 1
-            print('n clusters={}'.format(total))
+            noise = int((clusterer.labels_ == -1).sum() / len(clusterer.labels_) * 100)
+            print('min_samples={}, n clusters={}'.format(min_samples, total))
+            print('noise={}%\n'.format(noise))
+
             save_clustered_image_examples(clusterer, image_ids, dates, drug_names, cell_line, save_images_to)
 
-            # TODO:
-            #  - plot heatmaps with clustering results
-            #  - plot how many images are in each cluster
 
 
 
