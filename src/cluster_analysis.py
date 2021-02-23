@@ -731,9 +731,10 @@ if __name__ == '__main__':
             embeddings = reducer.fit_transform(df.iloc[:, 4:].values)
 
             if use_HDBSCAN:
-                min_samples = get_best_min_samples_parameter(embeddings, min_cluster_size, minimize_n_clusters=True, print_info=True)
+                minimize_n_clusters = True
+                min_samples = get_best_min_samples_parameter(embeddings, min_cluster_size, minimize_n_clusters=minimize_n_clusters, print_info=True)
                 # min_samples = None
-                clusterer = hdbscan.HDBSCAN(metric='euclidean', min_samples=min_samples, min_cluster_size=min_cluster_size, allow_single_cluster=False)
+                clusterer = hdbscan.HDBSCAN(metric='euclidean', min_samples=min_samples, min_cluster_size=min_cluster_size, allow_single_cluster=minimize_n_clusters)
                 clusterer.fit(embeddings)
                 labels = clusterer.labels_
 
