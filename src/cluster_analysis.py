@@ -569,16 +569,16 @@ def get_best_t_parameter(Z, embeddings, max_number_of_clusters, print_info=False
     return ts[max_score_index]
 
 
-def get_best_min_samples_parameter(embeddings, min_cluster_size, print_info=False):
+def get_best_min_samples_parameter(embeddings, min_cluster_size, minimize_n_clusters=False, print_info=False):
     """ Find best value of min_samples parameter of HDBSCAN clustering algorithm:
         - the one that minimizes noise (the '-1' cluster) """
 
     percent_of_noise = []
     min_samples = []
+    n_clusters = []
     for value in range(1, min_cluster_size + 1):
         # HDBSCAN
-        clusterer = hdbscan.HDBSCAN(metric='euclidean', min_samples=value, min_cluster_size=min_cluster_size,
-                                    allow_single_cluster=False)
+        clusterer = hdbscan.HDBSCAN(metric='euclidean', min_samples=value, min_cluster_size=min_cluster_size, allow_single_cluster=minimize_n_clusters)
         clusterer.fit(embeddings)
 
         total = clusterer.labels_.max() + 1
@@ -586,15 +586,23 @@ def get_best_min_samples_parameter(embeddings, min_cluster_size, print_info=Fals
 
         percent_of_noise.append(noise)
         min_samples.append(value)
+        n_clusters.append(total)
 
         if print_info:
             print('min_samples={}, n clusters={}'.format(value, total))
             print('noise={}%\n'.format(noise))
 
-    # find an index of the smallest percent of noise
-    min_index = percent_of_noise.index(min(percent_of_noise))
+    if minimize_n_clusters:
+        # find an index with the smallest number of clusters and
+        min_cluster_indices = [i for i in range(len(n_clusters)) if n_clusters[i] == min(n_clusters)]
+        lowest_noise_index = [i for i in min_cluster_indices if percent_of_noise[i] == min(percent_of_noise)][0]
+        index = lowest_noise_index
+    else:
+        # find an index of the smallest percent of noise
+        index = percent_of_noise.index(min(percent_of_noise))
+
     # return the corresponding min_samples value
-    return min_samples[min_index]
+    return min_samples[index]
 
 
 def plot_cluster_capacity(labels, cell_line, save_to):
@@ -687,7 +695,7 @@ if __name__ == '__main__':
     if True:
 
         SEED = 4
-        use_HDBSCAN = False
+        use_HDBSCAN = True
         numpy.random.seed(SEED)
         save_images_to = '/Users/{}/ETH/projects/pheno-ml/res/clustering_within_cell_lines/'.format(user)
 
@@ -723,7 +731,8 @@ if __name__ == '__main__':
             embeddings = reducer.fit_transform(df.iloc[:, 4:].values)
 
             if use_HDBSCAN:
-                min_samples = get_best_min_samples_parameter(embeddings, min_cluster_size)
+                min_samples = get_best_min_samples_parameter(embeddings, min_cluster_size, minimize_n_clusters=True, print_info=True)
+                # min_samples = None
                 clusterer = hdbscan.HDBSCAN(metric='euclidean', min_samples=min_samples, min_cluster_size=min_cluster_size, allow_single_cluster=False)
                 clusterer.fit(embeddings)
                 labels = clusterer.labels_
@@ -735,7 +744,8 @@ if __name__ == '__main__':
             else:
                 # use Nearest Point Algorithm
                 Z = linkage(embeddings)  # Euclidean is default
-                t = get_best_t_parameter(Z, embeddings, len(unique_drug_names))
+                # t = get_best_t_parameter(Z, embeddings, len(unique_drug_names))
+                t = 4
                 labels = fcluster(Z, t=t, criterion='maxclust')
 
                 score = round(float(silhouette_score(embeddings, labels)), 3)
