@@ -46,14 +46,174 @@ class DeepClassifier(nn.Module):
 
 def define_cropping_strategies(crop_size):
 
+    strategies = []
+
+    # ONE CROP
     size_crops = [crop_size]
-    nmb_crops = [16]
+    nmb_crops = [1]
+    min_scale_crops = [0.5]
+    max_scale_crops = [0.75]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    # TWO CROPS
+    size_crops = [crop_size]
+    nmb_crops = [2]
+    min_scale_crops = [0.5]
+    max_scale_crops = [0.75]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    size_crops = [crop_size, crop_size]
+    nmb_crops = [1, 1]
+    min_scale_crops = [1, 0.25]
+    max_scale_crops = [1, 0.5]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    size_crops = [crop_size, crop_size]
+    nmb_crops = [1, 1]
+    min_scale_crops = [1, 0.5]
+    max_scale_crops = [1, 0.75]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    # THREE CROPS
+    size_crops = [crop_size]
+    nmb_crops = [3]
+    min_scale_crops = [0.5]
+    max_scale_crops = [0.75]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    size_crops = [crop_size, crop_size]
+    nmb_crops = [2, 1]
+    min_scale_crops = [0.5, 0.25]
+    max_scale_crops = [0.75, 0.5]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    size_crops = [crop_size, crop_size]
+    nmb_crops = [1, 2]
+    min_scale_crops = [1, 0.25]
+    max_scale_crops = [1, 0.5]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    size_crops = [crop_size, crop_size, crop_size]
+    nmb_crops = [1, 1, 1]
+    min_scale_crops = [0.5, 0.25, 0.25]
+    max_scale_crops = [0.75, 0.5, 0.25]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    # FOUR CROPS
+    size_crops = [crop_size]
+    nmb_crops = [4]
     min_scale_crops = [0.25]
     max_scale_crops = [0.5]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
 
-    strategy = ("default", size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    size_crops = [crop_size, crop_size, crop_size]
+    nmb_crops = [1, 1, 2]
+    min_scale_crops = [1, 0.5, 0.25]
+    max_scale_crops = [1, 0.75, 0.5]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
 
-    return [strategy]
+    size_crops = [crop_size, crop_size]
+    nmb_crops = [2, 2]
+    min_scale_crops = [0.5, 0.25]
+    max_scale_crops = [0.75, 0.5]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    size_crops = [crop_size, crop_size]
+    nmb_crops = [1, 3]
+    min_scale_crops = [0.5, 0.25]
+    max_scale_crops = [0.75, 0.25]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    size_crops = [crop_size, crop_size, crop_size, crop_size]
+    nmb_crops = [1, 1, 1, 1]
+    min_scale_crops = [1, 0.5, 0.25, 0.25]
+    max_scale_crops = [1, 0.75, 0.5, 0.25]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    # FIVE CROPS
+    size_crops = [crop_size]
+    nmb_crops = [5]
+    min_scale_crops = [0.25]
+    max_scale_crops = [0.5]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    size_crops = [crop_size]
+    nmb_crops = [5]
+    min_scale_crops = [0.25]
+    max_scale_crops = [0.25]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    size_crops = [crop_size, crop_size, crop_size]
+    nmb_crops = [1, 2, 2]
+    min_scale_crops = [1, 0.5, 0.25]
+    max_scale_crops = [1, 0.75, 0.5]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    size_crops = [crop_size, crop_size, crop_size]
+    nmb_crops = [1, 2, 2]
+    min_scale_crops = [0.5, 0.25, 0.25]
+    max_scale_crops = [0.75, 0.5, 0.25]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    size_crops = [crop_size, crop_size]
+    nmb_crops = [1, 4]
+    min_scale_crops = [0.5, 0.25]
+    max_scale_crops = [0.75, 0.25]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    size_crops = [crop_size, crop_size]
+    nmb_crops = [2, 3]
+    min_scale_crops = [0.25, 0.25]
+    max_scale_crops = [0.5, 0.25]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    size_crops = [crop_size, crop_size, crop_size, crop_size]
+    nmb_crops = [1, 1, 1, 3]
+    min_scale_crops = [1, 0.5, 0.25, 0.25]
+    max_scale_crops = [1, 0.75, 0.5, 0.25]
+    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    strategies.append(strategy)
+
+    return strategies
 
 
 def run_training_for_64x64_cuts(epochs, data_loader, device=torch.device('cuda'), run_id=""):
