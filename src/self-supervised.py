@@ -1,122 +1,128 @@
+import os
 
-import os, pandas, time, torch, numpy, uuid, seaborn, random, shutil, traceback
-from PIL import Image
+import torch, time, traceback, pandas, seaborn
 from matplotlib import pyplot
+from torch import nn
+from src.datasets import MultiCropDataset
+from torch.utils.data import DataLoader
 from byol_pytorch import BYOL
-from torch.utils.data import Dataset, DataLoader
-from torchvision.transforms import Resize
-
-from src.datasets import CustomImageDataset
-from src.classifier import DeepClassifier
 
 
-def get_byol_pars(im_size, randomize=True):
+class DeepClassifier(nn.Module):
 
-    if randomize:
-        return dict(image_size=im_size,  # 256
-                    hidden_layer='model.11',
-                    projection_size=random.sample([64, 128, 256, 512, 1024, 2048, 4096], 1)[0],  # 256
-                    projection_hidden_size=random.sample([512, 1024, 2048, 4096, 8192], 1)[0],  # 4096
-                    augment_fn=None,
-                    augment_fn2=None,
-                    moving_average_decay=random.sample([0.8, 0.9, 0.99], 1)[0],
-                    use_momentum=True)
-    else:
-        return dict(image_size=im_size,
-                    hidden_layer='model.11',
-                    projection_size=im_size,
-                    # projection_hidden_size=2048,  # best
-                    # projection_hidden_size=1024,  # second best
-                    # projection_hidden_size=512,  # as good
-                    projection_hidden_size=256,  #
-                    augment_fn=None,
-                    augment_fn2=None,
-                    moving_average_decay=0.8,
-                    use_momentum=True)
+    def __init__(self):
+        super().__init__()
 
+        self.model = nn.Sequential(
+            nn.Conv2d(1, 64, (3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.ReLU(True),
+            nn.MaxPool2d(2),
 
-def generate_grid(grid_size, image_size, randomize=True):
+            nn.Conv2d(64, 32, (3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.ReLU(True),
+            nn.MaxPool2d(2),
 
-    grid = {'id': [], 'byol': []}
-    for _ in range(grid_size):
-        grid['id'].append(str(uuid.uuid4())[:8])
-        grid['byol'].append(get_byol_pars(image_size, randomize=randomize))
+            nn.Conv2d(32, 16, (3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.ReLU(True),
 
-    return grid
+            nn.Conv2d(16, 8, (3, 3), stride=(1, 1), padding=(1, 1)),  # 8 x 16 x 16
 
+            nn.Flatten(),
+            nn.Linear(2048, 256),
+            nn.LeakyReLU(True),
+            nn.Linear(256, 2),
+            nn.Softmax(dim=1)
+        )
 
-def run_byol_training(model, epochs, batch_size, device, grid=None, save_path='D:\ETH\projects\morpho-learner\\res\\byol\\'):
+        print(self)
+        print('number of parameters: {}\n'.format(self.count_parameters()))
 
-    path_to_data = 'D:\ETH\projects\pheno-ml\data\cropped\\'
-    image_size = 128
+    def forward(self, features):
+        return self.model(features)
 
-    if grid is None:
-        grid_size = 1
-        grid = generate_grid(grid_size, image_size, randomize=False)
-
-    transform = lambda img: Resize(size=image_size)(img) / 255.
-    training_data = CustomImageDataset(path_to_data, 0, transform=transform)
-    data_loader = DataLoader(training_data, batch_size=batch_size, shuffle=True, num_workers=)
-
-    train(model, grid, epochs, data_loader, device, save_path)
+    def count_parameters(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-def train(model, grid, epochs, data_loader, device, save_path):
+def define_cropping_strategies(crop_size):
 
-    for i, id in enumerate(grid['id']):
+    size_crops = [crop_size]
+    nmb_crops = [16]
+    min_scale_crops = [0.25]
+    max_scale_crops = [0.5]
 
-        print(pandas.DataFrame(grid['byol'][i], index=['values'], columns=grid['byol'][i].keys()).T.to_string())
-        print('training for set {} started'.format(id))
-        if not os.path.exists(save_path + id):
-            os.makedirs(save_path + id)
+    strategy = ("default", size_crops, nmb_crops, min_scale_crops, max_scale_crops)
 
+    return [strategy]
+
+
+def run_training_for_64x64_cuts(epochs, data_loader, device=torch.device('cuda'), run_id=""):
+
+    save_path = 'D:\ETH\projects\pheno-ml\\res\\byol\\{}'.format(run_id)
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    model = DeepClassifier().to(device)
+    train(model, epochs, data_loader, device, save_path)
+
+
+def train(model, epochs, data_loader, device, save_path):
+
+    try:
+        learner = BYOL(model,
+                       image_size=64, hidden_layer='model.9',
+                       projection_size=64, projection_hidden_size=2048,
+                       moving_average_decay=0.8, use_momentum=True).to(device)
+
+        optimizer = torch.optim.Adam(learner.parameters(), lr=0.0001)
+        scheduler = None
+
+        loss_history = []
         try:
-            learner = BYOL(model, **grid['byol'][i]).to(device)
-            opt = torch.optim.Adam(learner.parameters(), lr=0.002)
-
-            loss_history = []
-            try:
-                for epoch in range(epochs):
-                    start = time.time()
-                    epoch_loss = 0
-                    for batch_features in data_loader:
-                        images = batch_features[0].float().to(device)
-                        loss = learner(images)
+            for epoch in range(epochs):
+                start = time.time()
+                epoch_loss = 0
+                n_crops = 1
+                for batch in data_loader:
+                    n_crops = len(batch)
+                    for crops, _ in batch:
+                        crops = crops.float().to(device)
+                        loss = learner(crops)
                         epoch_loss += loss.item()
-                        opt.zero_grad()
+                        optimizer.zero_grad()
                         loss.backward()
-                        opt.step()
+                        optimizer.step()
                         learner.update_moving_average()  # update moving average of teacher encoder and teacher centers
 
-                    epoch_loss = epoch_loss / len(data_loader)
-                    loss_history.append(epoch_loss)
-                    print("epoch {}: {} min, loss = {:.4f}".format(epoch + 1, int((time.time() - start) / 60),
-                                                                   epoch_loss))
-                    # save network
-                    torch.save(model.state_dict(), save_path + id + '\\dcl+byol_at_{}.torch'.format(epoch))
+                epoch_loss = epoch_loss / len(data_loader) / n_crops
+                loss_history.append(epoch_loss)
+                print("epoch {}: {} min, loss = {:.4f}".format(epoch + 1, int((time.time() - start) / 60), epoch_loss))
 
-                    if epoch >= 2:
-                        if epoch_loss > loss_history[epoch - 1] > loss_history[epoch - 2] or epoch_loss > loss_history[0]:
-                            # if loss grows, stop training
-                            break
-                        elif round(epoch_loss, 4) == round(loss_history[epoch - 1], 4):
-                            # if loss doesn't fall, stop
-                            break
+                # update lr
+                if scheduler is not None:
+                    scheduler.step()
 
-                print('{}/{} completed'.format(i + 1, len(grid['id'])))
-                save_history_and_parameters(loss_history, grid['byol'][i], save_path + id)
+                # save network
+                torch.save(model.state_dict(), save_path + '\\byol_at_{}.torch'.format(epoch+1))
 
-            except Exception as e:
-                print('{}/{} failed with {}\n'.format(i + 1, len(grid['id']), e))
-                save_history_and_parameters(loss_history, grid['byol'][i], save_path + id)
-                # shutil.rmtree(save_path + id)
+                if epoch >= 2:
+                    if epoch_loss > loss_history[epoch - 1] > loss_history[epoch - 2] or epoch_loss > loss_history[0]:
+                        # if loss grows, stop training
+                        break
+                    elif round(epoch_loss, 4) == round(loss_history[epoch - 1], 4):
+                        # if loss doesn't fall, stop
+                        break
+
+            save_history(loss_history, save_path)
+
         except Exception as e:
-            print('{}/{} failed building byol with {}\n'.format(i + 1, len(grid['id']), e))
-            print(traceback.print_exc())
-            # shutil.rmtree(save_path + id)
+            print('failed with {}\n'.format(e))
+    except Exception as e:
+        print('failed building byol with {}\n'.format(e))
+        print(traceback.print_exc())
 
 
-def save_history_and_parameters(loss_history, byol_pars, save_path):
+def save_history(loss_history, save_path):
 
     # save history
     history = pandas.DataFrame({'epoch': [x+1 for x in range(len(loss_history))], 'loss': loss_history})
@@ -125,25 +131,24 @@ def save_history_and_parameters(loss_history, byol_pars, save_path):
     # plot history
     seaborn.lineplot(data=history, x='epoch', y='loss')
     pyplot.grid()
-    pyplot.savefig(save_path + '\\loss.png')
+    pyplot.savefig(save_path + '\\loss_min={}.png'.format(round(min(loss_history), 4)))
     pyplot.close()
-
-    # save vit parameters
-    pandas.DataFrame(byol_pars, index=['values'], columns=byol_pars.keys()).T \
-        .to_csv(save_path + '\\byol_pars.csv', index=True)
-
-    print('history and parameters saved\n')
+    print('history saved\n')
 
 
 if __name__ == "__main__":
 
-    device = torch.device('cuda')
+    path_to_data = "D:\ETH\projects\pheno-ml\data\\full\\"
+    crop_size = 64
+    epochs = 50
+    batch_size = 512
+    train_size = -1
 
-    path_to_cl_model = "D:\ETH\projects\pheno-ml\\res\\classifier\\fourth\dcl_at_8.torch"
-    cl = DeepClassifier().to(device)
-    cl.load_state_dict(torch.load(path_to_cl_model, map_location=device))
-    cl.eval()
+    strategies = define_cropping_strategies(crop_size)
 
-    run_byol_training(cl, 50, 64, device, save_path="D:\ETH\projects\pheno-ml\\res\\byol\\")
+    for cropping_id, *cropping_strategy in strategies:
 
-
+        train_multi_crop = MultiCropDataset(path_to_data, *cropping_strategy, no_aug=False, size_dataset=train_size)
+        print('training data:', train_multi_crop.__len__())
+        data_loader_train = DataLoader(train_multi_crop, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, drop_last=True)
+        run_training_for_64x64_cuts(epochs, data_loader_train, device=torch.device('cuda'), run_id=cropping_id)
