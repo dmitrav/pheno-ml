@@ -22,5 +22,4 @@ from datetime import datetime
 if __name__ == "__main__":
 
     heatmap = pandas.DataFrame(0, columns=['c1', 'c2', 'c3'], index=['r1', 'r2', 'r3'])
-
     print(heatmap)
