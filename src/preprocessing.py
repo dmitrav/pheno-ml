@@ -1,5 +1,5 @@
 
-import os, numpy
+import os, numpy, shutil
 from multiprocessing import Process
 from PIL import Image
 from PIL import ImageFilter
@@ -117,7 +117,67 @@ def find_and_crop_remaining_images(input_path, output_path):
                         sharped_image.save(output_path + cell_line_folder + '/' + image_name.replace('.tif', '.jpg'), "JPEG")
 
 
+def copy_control_and_drug_images():
+    """ This is to formulate a balanced binary classification problem. """
+
+    # copy from
+    dmso_ids_path = 'D:\ETH\projects\morpho-learner\data\cut_controls\\'
+    drugs_ids_path = 'D:\ETH\projects\morpho-learner\data\cut\\'
+    full_data_path = 'D:\ETH\projects\pheno-ml\data\cropped\\'
+
+    # copy to
+    controls_path = 'D:\ETH\projects\pheno-ml\data\classification_controls\\'
+    drugs_path = 'D:\ETH\projects\pheno-ml\data\classification_drugs\\'
+
+    # get ids of images
+    dmso_ids = list(set([x.split('DMSO')[0][:-1] for x in os.listdir(dmso_ids_path)]))
+    pbs_ids = list(set([x.split('PBS')[0][:-1] for x in os.listdir(drugs_ids_path) if 'PBS' in x]))
+    drugs_ids = list(set(['_'.join(x.split('_')[:4]) for x in os.listdir(drugs_ids_path) if x.split('_')[4] != 'PBS']))
+    control_ids = [*dmso_ids, *pbs_ids]
+
+    all_files = sorted(os.listdir(full_data_path))
+    nc, nd = 0, 0
+    i = 0
+    while i < len(all_files):
+
+        index = '_'.join(all_files[i].split('_')[:4])
+        j = i + 1
+        while '_'.join(all_files[j].split('_')[:4]) == index:
+            j += 1
+            if j == len(all_files):
+                break
+
+        # calculate how many images will be in each category
+        if index in control_ids:
+            nc += j-i
+        elif index in drugs_ids:
+            nd += 40
+        else:
+            pass
+
+        if index in control_ids:
+            # copy j-i DMSO or PBS images
+            for k in range(i, j):
+                shutil.copy(full_data_path + all_files[k], controls_path + all_files[k])
+        elif index in drugs_ids:
+            # copy last 40 drug images to have a balanced drug vs control dataset
+            for k in range(j-40, j):
+                shutil.copy(full_data_path + all_files[k], drugs_path + all_files[k])
+        else:
+            # drugs of low concentrations are of no interest
+            # to the classification problem, as they show no effect
+            pass
+
+        i += j-i
+
+    print('copying is complete')
+    print('controls:', nc)
+    print('drugs:', nd)
+
+
 if __name__ == "__main__":
+
+    copy_control_and_drug_images()
 
     if False:
         # batches 1, 3, 4, 6, 7 have been processed successfully
@@ -134,7 +194,7 @@ if __name__ == "__main__":
             p = Process(target=find_and_shrink_remaining_images, args=(input_path, output_path))
             p.start()
 
-    if True:
+    if False:
 
         # for n in [1, 2, 3, 4, 5, 6, 7]:
         for n in [3]:
@@ -147,4 +207,3 @@ if __name__ == "__main__":
             p = Process(target=find_and_crop_remaining_images, args=(input_path, output_path))
             p.start()
 
-        pass
