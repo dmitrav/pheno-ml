@@ -692,7 +692,7 @@ if __name__ == '__main__':
             # only max concentrations are used there
             perform_umap_for_drug_and_plot_results(drug, time_point='all', n=5, metric='euclidean', annotate_points=False,
                                                    save_to='/Users/andreidm/ETH/projects/pheno-ml/res/embeddings/drugs/')
-    if True:
+    if False:
 
         SEED = 4
         use_HDBSCAN = True

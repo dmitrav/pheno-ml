@@ -31,7 +31,8 @@ class MultiCropDataset(datasets.ImageFolder):
             max_scale_crops,
             size_dataset=-1,
             return_index=False,
-            no_aug=True
+            no_aug=True,
+            n_channels=1
     ):
         super(MultiCropDataset, self).__init__(data_path)
         assert len(size_crops) == len(nmb_crops)
@@ -41,6 +42,7 @@ class MultiCropDataset(datasets.ImageFolder):
             self.samples = self.samples[:size_dataset]
         self.return_index = return_index
         self.no_aug = no_aug
+        self.n_channels = n_channels
 
         no_trans = []
         trans = []
@@ -48,7 +50,7 @@ class MultiCropDataset(datasets.ImageFolder):
             no_trans.extend([
                              transforms.Compose([
                                  transforms.RandomResizedCrop(size_crops[i], scale=(min_scale_crops[i], max_scale_crops[i])),
-                                 transforms.Grayscale(num_output_channels=1),
+                                 transforms.Grayscale(num_output_channels=self.n_channels),
                                  transforms.ToTensor()
                              ])
                          ] * nmb_crops[i]
@@ -57,7 +59,7 @@ class MultiCropDataset(datasets.ImageFolder):
             trans.extend([
                              transforms.Compose([
                                  transforms.RandomResizedCrop(size_crops[i], scale=(min_scale_crops[i], max_scale_crops[i])),
-                                 transforms.Grayscale(num_output_channels=1),
+                                 transforms.Grayscale(num_output_channels=self.n_channels),
                                  transforms.ToTensor(),
                                  transforms.RandomHorizontalFlip(p=0.5),
                                  RandomApply(transforms.GaussianBlur((3, 3), (.1, 2.0)), p=0.2)
