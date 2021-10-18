@@ -3,6 +3,7 @@ import os, pandas, torch, numpy, random, umap, time
 from hdbscan import HDBSCAN
 from torch.nn import Sequential
 from torchvision.io import read_image
+from torchvision.transforms import Resize
 from scipy.spatial.distance import pdist
 from sklearn import metrics
 from tqdm import tqdm
@@ -94,7 +95,8 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         transform = lambda x: torch.Tensor(numpy.expand_dims(x / 255., axis=0))
     else:
         # upload my models
-        path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/res/models/{}/'.format(method_name)
+        # path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/res/models/{}/'.format(method_name)
+        path_to_model = 'D:\ETH\projects\pheno-ml\\res\\byol\\{}\\'.format(method_name)
         model = DeepClassifier().to(device)
         # load a trained deep classifier to use it in the transform
         model.load_state_dict(torch.load(path_to_model + 'best.torch', map_location=device))
@@ -102,51 +104,15 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         # truncate to the layer with learned representations
         model = Sequential(*list(model.model.children())[:-4])
         # create a transform function with weakly supervised classifier
-        transform = lambda x: model(torch.Tensor(numpy.expand_dims((x / 255.), axis=0)).to(device)).reshape(-1)
+        transform = lambda x: model(Resize(size=128)(torch.Tensor(numpy.expand_dims((x / 255.), axis=0)).to(device))).reshape(-1)
 
     return transform
 
 
-def get_image_encodings_from_path(path, common_image_ids, transform, n=None, randomize=True):
-
-    # get filenames to retrieve image ids
-    if isinstance(common_image_ids, str):
-        filenames = [f for f in os.listdir(path) if common_image_ids in f]
-
-    elif isinstance(common_image_ids, list):
-        # filenames must contain all ids
-        filenames = [f for f in os.listdir(path) if sum([1 for x in common_image_ids if x in f]) == len(common_image_ids)]
-    else:
-        raise ValueError('Unknown common image ids: {}'.format(common_image_ids))
-
-    if n is not None:
-        if randomize:
-            filenames = random.sample(filenames, n)
-        else:
-            filenames = sorted(filenames)[-n:]
-
-    image_ids = {
-        'filenames': filenames,
-        'cell_lines': [f.split('_')[0] for f in filenames],
-        'plates': [f.split('_')[2] for f in filenames],
-        'wells': [f.split('_')[3] for f in filenames],
-        'dates': ['_'.join(f.split('_')[-3:]) for f in filenames]
-    }
-
-    encodings = []
-    # get encodings
-    # print('processing images from {}'.format(path))
-    for file in tqdm(filenames):
-        img = read_image(path + file)
-        img_encoded = transform(img)
-        encodings.append(img_encoded.detach().cpu().numpy())
-
-    return encodings, image_ids
-
-
 def get_wells_of_drug_for_cell_line(cell_line, drug, plate=''):
 
-    meta_path = '/Users/andreidm/ETH/projects/pheno-ml/data/metadata/'
+    # meta_path = '/Users/andreidm/ETH/projects/pheno-ml/data/metadata/'
+    meta_path = 'D:\ETH\projects\pheno-ml\data\metadata\\'
     cell_plate_paths = [meta_path + file for file in os.listdir(meta_path) if cell_line in file and plate in file]
 
     wells = []
@@ -191,7 +157,8 @@ def calculate_similarity_of_pair(codes_A, codes_B):
 
 def compare_similarity(path_to_data, methods):
 
-    save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/'
+    # save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/'
+    save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\similarity\\'
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
@@ -200,7 +167,7 @@ def compare_similarity(path_to_data, methods):
 
     for method_name in methods:
 
-        transform = get_f_transform(method_name, torch.device('cpu'))
+        transform = get_f_transform(method_name, device=torch.device('cuda'))
 
         for cell_line in tqdm(cell_lines):
 
@@ -272,7 +239,8 @@ def compare_similarity(path_to_data, methods):
 def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_images, methods, range_with_step, uid=''):
     """ Cluster the dataset over multiple parameters, evaluate results and save results as a dataframe. """
 
-    save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/'
+    # save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/'
+    save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\clustering\\'
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
@@ -282,8 +250,7 @@ def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_imag
 
     for method_name in methods:
 
-        # TODO: set up correct transformations
-        transform = get_f_transform(method_name)
+        transform = get_f_transform(method_name, device=torch.device('cuda'))
 
         for cell_line in tqdm(cell_lines):
 
@@ -294,7 +261,6 @@ def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_imag
                     all_drugs_wells.extend([plate+'_'+well for well in max_conc_drug_wells])
 
             all_codes, _ = get_image_encodings_of_cell_line(path_to_images, cell_line, all_drugs_wells, transform=transform)
-            # TODO: make sure the dims are correct
             encodings = numpy.array(all_codes)
 
             for min_cluster_size in tqdm(range(*range_with_step)):
@@ -335,8 +301,9 @@ def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_imag
 
 if __name__ == "__main__":
 
-    path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
-    # compare_similarity(path_to_data, ['resnet50'])
+    path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
+    models = os.listdir('D:\ETH\projects\pheno-ml\\res\\byol\\')
 
-    collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, ['resnet50'], (10, 160, 10),
+    compare_similarity(path_to_data, models)
+    collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10),
                                                                     uid='by_cell_lines')
