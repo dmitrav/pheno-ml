@@ -174,7 +174,7 @@ def train(model, epochs, data_loader, device, save_path):
                        projection_size=128, projection_hidden_size=2048,
                        moving_average_decay=0.8, use_momentum=True).to(device)
 
-        optimizer = torch.optim.Adam(learner.parameters(), lr=0.0001)
+        optimizer = torch.optim.Adam(learner.parameters(), lr=0.005)
         scheduler = None
 
         loss_history = []
