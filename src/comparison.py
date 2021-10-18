@@ -48,14 +48,50 @@ def get_image_encodings_from_path(path, common_image_ids, transform, n=None, ran
     return encodings, image_ids
 
 
+def get_image_encodings_of_cell_line(path, cell_line, drugs_wells, transform):
+    """ Gets the last 10 timepoints of each drug. For a big dataset this should work faster. """
+
+    filenames = []
+    for file in os.listdir(path):
+        if file.split('_')[0] == cell_line:
+            if file.split('_')[2] + '_' + file.split('_')[3] in drugs_wells:
+                filenames.append(file)
+
+    filenames = sorted(filenames)
+    i = 0
+    latest_timepoints_filenames = []
+    while i < len(filenames)-1:
+        if filenames[i].split('_')[3] != filenames[i+1].split('_')[3]:
+            latest_timepoints_filenames.extend(filenames[i-9:i+1])
+        i += 1
+    latest_timepoints_filenames.extend(filenames[-10:])
+    filenames = latest_timepoints_filenames
+
+    image_ids = {
+        'filenames': filenames,
+        'cell_lines': [cell_line for f in filenames],
+        'plates': [f.split('_')[2] for f in filenames],
+        'wells': [f.split('_')[3] for f in filenames],
+        'dates': ['_'.join(f.split('_')[-3:]) for f in filenames]
+    }
+
+    encodings = []
+    for file in filenames:
+        img = read_image(path + file)
+        img_encoded = transform(img)
+        encodings.append(img_encoded.detach().cpu().numpy())
+
+    return encodings, image_ids
+
+
 def get_f_transform(method_name, device=torch.device('cpu')):
 
     if method_name == 'resnet50':
         # upload pretrained resnet50
-        transform = lambda x: x / 255.
+        transform = lambda x: torch.Tensor(numpy.expand_dims(x / 255., axis=0))
     elif method_name == 'byol_renset50':
         # upload  resnet50, pretrained with byol
-        transform = lambda x: x / 255.
+        transform = lambda x: torch.Tensor(numpy.expand_dims(x / 255., axis=0))
     else:
         # upload my models
         path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/res/models/{}/'.format(method_name)
@@ -198,7 +234,7 @@ def compare_similarity(path_to_data, methods):
 
             # compare Methotrexate with Pemetrexed
             results['group_by'].append(cell_line)
-            results['method_name'].append(method_name)
+            results['method'].append(method_name)
             results['comparison'].append('MTX-PTX')
             comparison = calculate_similarity_of_pair(mtx_codes, ptx_codes)
             results['euclidean'].append(comparison['euclidean'])
@@ -251,22 +287,13 @@ def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_imag
 
         for cell_line in tqdm(cell_lines):
 
-            all_codes = []
-            all_ids = []
+            all_drugs_wells = []
             for drug in drugs:
                 if drug not in ['PBS', 'DMSO']:
-                    max_conc_drug_wells, _ = get_wells_of_drug_for_cell_line(cell_line, drug)
+                    max_conc_drug_wells, plate = get_wells_of_drug_for_cell_line(cell_line, drug)
+                    all_drugs_wells.extend([plate+'_'+well for well in max_conc_drug_wells])
 
-                    drug_codes = []
-                    drug_ids = []
-                    for well in max_conc_drug_wells:
-                        codes, ids = get_image_encodings_from_path(path_to_images, [well, cell_line], transform, n=10, randomize=False)
-                        drug_codes.extend(codes)
-                        drug_ids.extend(ids)
-
-                    all_codes.extend(drug_codes)
-                    all_ids.extend(drug_ids)
-
+            all_codes, _ = get_image_encodings_of_cell_line(path_to_images, cell_line, all_drugs_wells, transform=transform)
             # TODO: make sure the dims are correct
             encodings = numpy.array(all_codes)
 
@@ -292,11 +319,8 @@ def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_imag
                     # single cluster
                     silhouette, calinski_harabasz, davies_bouldin = -1, -1, -1
 
-                consisten_c, consisten_d = calculate_clustering_consistency(clusters, image_ids)
-
                 results['group_by'].append(cell_line)
-                results['method'].append(model)
-                results['setting'].append(setting)
+                results['method'].append(method_name)
 
                 results['min_cluster_size'].append(min_cluster_size)
                 results['n_clusters'].append(n_clusters)
@@ -304,8 +328,6 @@ def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_imag
                 results['silhouette'].append(silhouette)
                 results['calinski_harabasz'].append(calinski_harabasz)
                 results['davies_bouldin'].append(davies_bouldin)
-                results['consistency_cells'].append(consisten_c)
-                results['consistency_drugs'].append(consisten_d)
 
     results = pandas.DataFrame(results)
     results.to_csv(save_to + 'clustering_{}.csv'.format(uid), index=False)
