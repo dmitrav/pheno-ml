@@ -3,13 +3,14 @@ import os, pandas, torch, numpy, random, umap, time
 from hdbscan import HDBSCAN
 from torch.nn import Sequential
 from torchvision.io import read_image
-from torchvision.transforms import Resize
+from torchvision.transforms import Resize, Grayscale, ToPILImage, ToTensor
 from scipy.spatial.distance import pdist
 from sklearn import metrics
 from tqdm import tqdm
 
 from src.self_supervised import DeepClassifier
 from src.constants import cell_lines, drugs
+from src import pretrained
 
 
 def get_image_encodings_from_path(path, common_image_ids, transform, n=None, randomize=True):
@@ -89,10 +90,31 @@ def get_f_transform(method_name, device=torch.device('cpu')):
 
     if method_name == 'resnet50':
         # upload pretrained resnet50
-        transform = lambda x: torch.Tensor(numpy.expand_dims(x / 255., axis=0))
-    elif method_name == 'byol_renset50':
+        model = pretrained.get_supervised_resnet()
+        transform = lambda x: model(
+            torch.unsqueeze(  # add batch dimension
+                ToTensor()(  # convert PIL to tensor
+                    Grayscale(num_output_channels=3)(  # apply grayscale, keeping 3 channels
+                        ToPILImage()(  # conver to PIL to apply grayscale
+                            Resize(size=128)(x)  # images are 256, but all models are trained with 128
+                        )
+                    )
+                ), 0)
+        ).reshape(-1)
+
+    elif method_name == 'byol_resnet50':
         # upload  resnet50, pretrained with byol
-        transform = lambda x: torch.Tensor(numpy.expand_dims(x / 255., axis=0))
+        model = pretrained.get_self_supervised_resnet()
+        transform = lambda x: model(
+            torch.unsqueeze(  # add batch dimension
+                ToTensor()(  # convert PIL to tensor
+                    Grayscale(num_output_channels=3)(  # apply grayscale, keeping 3 channels
+                        ToPILImage()(  # conver to PIL to apply grayscale
+                            Resize(size=128)(x)  # images are 256, but all models are trained with 128
+                        )
+                    )
+                ), 0)
+        ).reshape(-1)
     else:
         # upload my models
         # path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/res/models/{}/'.format(method_name)
@@ -104,15 +126,19 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         # truncate to the layer with learned representations
         model = Sequential(*list(model.model.children())[:-4])
         # create a transform function with weakly supervised classifier
-        transform = lambda x: model(Resize(size=128)(torch.Tensor(numpy.expand_dims((x / 255.), axis=0)).to(device))).reshape(-1)
+        transform = lambda x: model(
+            Resize(size=128)(
+                torch.Tensor(numpy.expand_dims((x / 255.), axis=0)).to(device)
+            )
+        ).reshape(-1)
 
     return transform
 
 
 def get_wells_of_drug_for_cell_line(cell_line, drug, plate=''):
 
-    # meta_path = '/Users/andreidm/ETH/projects/pheno-ml/data/metadata/'
-    meta_path = 'D:\ETH\projects\pheno-ml\data\metadata\\'
+    meta_path = '/Users/andreidm/ETH/projects/pheno-ml/data/metadata/'
+    # meta_path = 'D:\ETH\projects\pheno-ml\data\metadata\\'
     cell_plate_paths = [meta_path + file for file in os.listdir(meta_path) if cell_line in file and plate in file]
 
     wells = []
@@ -132,7 +158,6 @@ def calculate_similarity_of_pair(codes_A, codes_B):
     d_cos = []
     d_corr = []
     d_bray = []
-    d_mahal = []
 
     for code_a in codes_A:
         for code_b in codes_B:
@@ -141,33 +166,30 @@ def calculate_similarity_of_pair(codes_A, codes_B):
             d_cos.append(pdist([code_a, code_b], metric='cosine'))
             d_corr.append(pdist([code_a, code_b], metric='correlation'))
             d_bray.append(pdist([code_a, code_b], metric='braycurtis'))
-            d_mahal.append(pdist([code_a, code_b], metric='mahalanobis'))
 
     res = {
         'euclidean': numpy.median(d_2),
         'cosine': numpy.median(d_cos),
         'correlation': numpy.median(d_corr),
-        'braycurtis': numpy.median(d_bray),
-        'mahalanobis': numpy.median(d_mahal)
-
+        'braycurtis': numpy.median(d_bray)
     }
 
     return res
 
 
-def compare_similarity(path_to_data, methods):
+def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda')):
 
-    # save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/'
-    save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\similarity\\'
+    save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/'
+    # save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\similarity\\'
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
-    results = {'group_by': [], 'method_name': [], 'comparison': [],
-               'euclidean': [], 'cosine': [], 'correlation': [], 'braycurtis': [], 'mahalonobis': []}
+    results = {'group_by': [], 'method': [], 'comparison': [],
+               'euclidean': [], 'cosine': [], 'correlation': [], 'braycurtis': []}
 
     for method_name in methods:
 
-        transform = get_f_transform(method_name, device=torch.device('cuda'))
+        transform = get_f_transform(method_name, device=device)
 
         for cell_line in tqdm(cell_lines):
 
@@ -208,7 +230,6 @@ def compare_similarity(path_to_data, methods):
             results['cosine'].append(comparison['cosine'])
             results['correlation'].append(comparison['correlation'])
             results['braycurtis'].append(comparison['braycurtis'])
-            results['mahalanobis'].append(comparison['mahalanobis'])
 
             # compare Methotrexate with DMSO (control)
             results['group_by'].append(cell_line)
@@ -219,7 +240,6 @@ def compare_similarity(path_to_data, methods):
             results['cosine'].append(comparison['cosine'])
             results['correlation'].append(comparison['correlation'])
             results['braycurtis'].append(comparison['braycurtis'])
-            results['mahalanobis'].append(comparison['mahalanobis'])
 
             # compare Pemetrexed with DMSO (control)
             results['group_by'].append(cell_line)
@@ -230,27 +250,25 @@ def compare_similarity(path_to_data, methods):
             results['cosine'].append(comparison['cosine'])
             results['correlation'].append(comparison['correlation'])
             results['braycurtis'].append(comparison['braycurtis'])
-            results['mahalanobis'].append(comparison['mahalanobis'])
 
     results = pandas.DataFrame(results)
-    results.to_csv(save_to + 'similarity.csv', index=False)
+    results.to_csv(save_to + 'similarity_{}.csv'.format(uid), index=False)
 
 
-def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_images, methods, range_with_step, uid=''):
+def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_images, methods, range_with_step, uid='', device=torch.device('cuda')):
     """ Cluster the dataset over multiple parameters, evaluate results and save results as a dataframe. """
 
-    # save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/'
-    save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\clustering\\'
+    save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/'
+    # save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\clustering\\'
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
-    results = {'group_by': [], 'method_name': [], 'min_cluster_size': [],
-               'n_clusters': [], 'noise': [], 'silhouette': [], 'calinski_harabasz': [], 'davies_bouldin': [],
-               'consistency_cells': [], 'consistency_drugs': []}
+    results = {'group_by': [], 'method': [], 'min_cluster_size': [],
+               'n_clusters': [], 'noise': [], 'silhouette': [], 'calinski_harabasz': [], 'davies_bouldin': []}
 
     for method_name in methods:
 
-        transform = get_f_transform(method_name, device=torch.device('cuda'))
+        transform = get_f_transform(method_name, device=device)
 
         for cell_line in tqdm(cell_lines):
 
@@ -301,9 +319,12 @@ def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_imag
 
 if __name__ == "__main__":
 
-    path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
-    models = os.listdir('D:\ETH\projects\pheno-ml\\res\\byol\\')
+    # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
+    path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
+    # models = os.listdir('D:\ETH\projects\pheno-ml\\res\\byol\\')
+    models = ['resnet50', 'byol_resnet50']
 
-    compare_similarity(path_to_data, models)
+    device = torch.device('cpu')
+    compare_similarity(path_to_data, models, uid='pretrained', device=device)
     collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10),
-                                                                    uid='by_cell_lines')
+                                                                    uid='by_cell_lines_pretrained', device=device)
