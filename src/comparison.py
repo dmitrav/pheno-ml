@@ -96,7 +96,9 @@ def get_f_transform(method_name, device=torch.device('cpu')):
                 ToTensor()(  # convert PIL to tensor
                     Grayscale(num_output_channels=3)(  # apply grayscale, keeping 3 channels
                         ToPILImage()(  # conver to PIL to apply grayscale
-                            Resize(size=128)(x)  # images are 256, but all models are trained with 128
+                            Resize(size=224)(  # and resnet is trained with 224
+                                Resize(size=128)(x)  # images are 256, but all models are trained with 128
+                            )
                         )
                     )
                 ), 0)
@@ -110,7 +112,9 @@ def get_f_transform(method_name, device=torch.device('cpu')):
                 ToTensor()(  # convert PIL to tensor
                     Grayscale(num_output_channels=3)(  # apply grayscale, keeping 3 channels
                         ToPILImage()(  # conver to PIL to apply grayscale
-                            Resize(size=128)(x)  # images are 256, but all models are trained with 128
+                            Resize(size=224)(  # and resnet is trained with 224
+                                Resize(size=128)(x)  # images are 256, but all models are trained with 128
+                            )
                         )
                     )
                 ), 0)
@@ -328,3 +332,6 @@ if __name__ == "__main__":
     compare_similarity(path_to_data, models, uid='pretrained', device=device)
     collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10),
                                                                     uid='by_cell_lines_pretrained', device=device)
+    # TODO:
+    #  - train classifiers,
+    #  - evaluate classifications
