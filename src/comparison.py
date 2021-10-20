@@ -41,7 +41,7 @@ class Classifier(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, device=torch.device('cuda'), batch_size=256):
+def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, uid='', device=torch.device('cuda'), batch_size=256):
 
     path_to_images = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
     save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/'
@@ -123,14 +123,15 @@ def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, d
             results['precision'].append(float(best_f1_data['precision']))
             results['specificity'].append(float(best_f1_data['specificity']))
             results['f1'].append(float(best_f1_data['f1']))
-            if model == 'resnet50':
+            if model_name == 'resnet50':
                 results['models'].append('ResNet-50')
-            else:
+            elif model_name == 'swav_resnet50':
                 results['models'].append('SwAV')
+            else:
+                results['models'].append('BYOL*')
 
     results_df = pandas.DataFrame(results)
-    results_df.to_csv(save_path + 'classification.csv')
-
+    results_df.to_csv(save_path + 'classification_{}.csv'.format(uid))
 
 
 def run_supervised_classifier_training(loader_train, model, optimizer, criterion, device,
@@ -212,7 +213,7 @@ def run_supervised_classifier_training(loader_train, model, optimizer, criterion
     return train_acc, val_acc
 
 
-def collect_and_plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_pretrained.csv'):
+def plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_pretrained.csv'):
 
     results = pandas.read_csv(path_to_results)
 
@@ -337,8 +338,8 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         ).reshape(-1)
     else:
         # upload my models
-        # path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/res/models/{}/'.format(method_name)
-        path_to_model = 'D:\ETH\projects\pheno-ml\\res\\byol\\{}\\'.format(method_name)
+        path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/res/pretrained/byol/{}/'.format(method_name)
+        # path_to_model = 'D:\ETH\projects\pheno-ml\\res\\byol\\{}\\'.format(method_name)
         model = DeepClassifier().to(device)
         # load a trained deep classifier to use it in the transform
         model.load_state_dict(torch.load(path_to_model + 'best.torch', map_location=device))
@@ -347,9 +348,14 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         model = Sequential(*list(model.model.children())[:-4])
         # create a transform function with weakly supervised classifier
         transform = lambda x: model(
-            Resize(size=128)(
-                torch.Tensor(numpy.expand_dims((x / 255.), axis=0)).to(device)
-            )
+            torch.unsqueeze(  # add batch dimension
+                ToTensor()(  # convert PIL to tensor
+                    Grayscale(num_output_channels=1)(  # apply grayscale, keeping 1 channel
+                        ToPILImage()(  # conver to PIL to apply grayscale
+                            Resize(size=128)(x)  # images are 256, but all models are trained with 128
+                        )
+                    )
+                ), 0)
         ).reshape(-1)
 
     return transform
@@ -537,12 +543,14 @@ def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_imag
     results.to_csv(save_to + 'clustering_{}.csv'.format(uid), index=False)
 
 
-def plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_pretrained.csv'):
+def plot_similarity_results(pretrained=False, path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_pretrained.csv'):
 
     results = pandas.read_csv(path_to_results)
 
-    results.loc[results['method'] == 'resnet50', 'method'] = 'ResNet-50'
-    results.loc[results['method'] == 'swav_resnet50', 'method'] = 'SwAV'
+    if pretrained:
+        results.loc[results['method'] == 'resnet50', 'method'] = 'ResNet-50'
+        results.loc[results['method'] == 'swav_resnet50', 'method'] = 'SwAV'
+
     methods = list(results['method'].unique())
 
     seaborn.set()
@@ -560,12 +568,13 @@ def plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
     pyplot.show()
 
 
-def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_pretrained.csv'):
+def plot_clustering_results(pretrained=False, path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_pretrained.csv'):
 
     results = pandas.read_csv(path_to_results)
 
-    results.loc[results['method'] == 'resnet50', 'method'] = 'ResNet-50'
-    results.loc[results['method'] == 'swav_resnet50', 'method'] = 'SwAV'
+    if pretrained:
+        results.loc[results['method'] == 'resnet50', 'method'] = 'ResNet-50'
+        results.loc[results['method'] == 'swav_resnet50', 'method'] = 'SwAV'
 
     results['not_noise'] = 100 - results['noise']
     results['davies_bouldin-1'] = 1 / results['davies_bouldin']
@@ -588,22 +597,25 @@ if __name__ == "__main__":
     # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
     path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
     # models = os.listdir('D:\ETH\projects\pheno-ml\\res\\byol\\')
+    # models = os.listdir('/Users/andreidm/ETH/projects/pheno-ml/pretrained/byol/')
     models = ['resnet50', 'swav_resnet50']
 
     device = torch.device('cpu')
 
-    evalute = False
-    plot = True
+    evaluate = True
+    plot = False
 
-    if evalute:
+    uid = 'trained_half'
+
+    if evaluate:
         # distance-based analysis of known drugs
-        compare_similarity(path_to_data, models, uid='pretrained', device=device)
+        compare_similarity(path_to_data, models, uid=uid, device=device)
         # clustering analysis within cell lines
-        collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines_pretrained', device=device)
+        collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines_{}'.format(uid), device=device)
         # classification of drugs vs controls
-        train_classifiers_with_pretrained_encoder_and_save_results(25, models, batch_size=1024, device=device)
+        train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
 
     if plot:
         plot_similarity_results()
         plot_clustering_results()
-        collect_and_plot_classification_results()
+        plot_classification_results()
