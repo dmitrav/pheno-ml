@@ -1,4 +1,4 @@
-import os, pandas, time, torch, numpy, itertools
+import os, pandas, time, torch, numpy, itertools, seaborn
 from matplotlib import pyplot
 from torch import nn, optim
 from torch.utils.data import Dataset, DataLoader, TensorDataset
@@ -177,12 +177,55 @@ def run_supervised_classifier_training(loader_train, model, optimizer, criterion
     return train_acc, val_acc
 
 
+def collect_and_plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/linear_evaluation/'):
+
+    results = {
+        'models': [], 'lrs': [], 'ms': [], 'wds': [],
+        'epoch': [], 'accuracy': [], 'recall': [], 'precision': [], 'specificity': [], 'f1': []
+    }
+
+    for model in os.listdir(path_to_results):
+        for param_set in os.listdir(path_to_results + model):
+            data = pandas.read_csv(path_to_results + model + '/' + param_set + '/history.csv')
+            best_f1_data = data.loc[data['f1'] == data['f1'].max(), :]
+
+            results['lrs'].append(float(param_set.split(',')[0].split('=')[1]))
+            results['ms'].append(float(param_set.split(',')[1].split('=')[1]))
+            results['wds'].append(float(param_set.split(',')[2].split('=')[1]))
+            results['epoch'].append(int(best_f1_data['epoch']))
+            results['accuracy'].append(float(best_f1_data['accuracy']))
+            results['recall'].append(float(best_f1_data['recall']))
+            results['precision'].append(float(best_f1_data['precision']))
+            results['specificity'].append(float(best_f1_data['specificity']))
+            results['f1'].append(float(best_f1_data['f1']))
+            if model == 'resnet50':
+                results['models'].append('ResNet-50')
+            else:
+                results['models'].append('SwAV')
+
+    results_df = pandas.DataFrame(results)
+
+    i = 1
+    seaborn.set()
+    pyplot.figure(figsize=(12,3))
+    for metric in ['accuracy', 'recall', 'precision', 'specificity', 'f1']:
+        pyplot.subplot(1, 5, i)
+        seaborn.boxplot(x='models', y=metric, data=results_df)
+        pyplot.title(metric)
+        i += 1
+    pyplot.tight_layout()
+    pyplot.show()
+
+
 if __name__ == '__main__':
 
-    epochs = 25
+    train = False
 
-    for model in ['resnet50', 'swav_resnet50']:
-        train_classifier_with_pretrained_encoder(epochs, model, batch_size=1024, device='cpu')
+    if train:
+        epochs = 25
+        batch_size = 1024
+        device = torch.device('cpu')
+        for model in ['resnet50', 'swav_resnet50']:
+            train_classifier_with_pretrained_encoder(epochs, model, batch_size=batch_size, device=device)
 
-    # TODO:
-    #  - evaluate classifications
+    collect_and_plot_classification_results()
