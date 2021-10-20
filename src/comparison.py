@@ -215,6 +215,7 @@ def collect_and_plot_classification_results(path_to_results='/Users/andreidm/ETH
     i = 1
     seaborn.set()
     pyplot.figure(figsize=(12,3))
+    pyplot.suptitle('Comparison of drug-control classification')
     for metric in ['accuracy', 'recall', 'precision', 'specificity', 'f1']:
         pyplot.subplot(1, 5, i)
         seaborn.boxplot(x='models', y=metric, data=results_df)
@@ -541,7 +542,7 @@ def plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
     for method in methods:
         i = 1
         pyplot.figure(figsize=(10, 3))
-        pyplot.suptitle(method)
+        pyplot.suptitle('Comparison of drug similarity: {}'.format(method))
         for metric in ['euclidean', 'cosine', 'correlation', 'braycurtis']:
             pyplot.subplot(1, 4, i)
             seaborn.barplot(x='comparison', y=metric, data=results)
@@ -549,6 +550,29 @@ def plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
             pyplot.xticks(rotation=45)
             i += 1
         pyplot.tight_layout()
+    pyplot.show()
+
+
+def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_pretrained.csv'):
+
+    results = pandas.read_csv(path_to_results)
+
+    results.loc[results['method'] == 'resnet50', 'method'] = 'ResNet-50'
+    results.loc[results['method'] == 'swav_resnet50', 'method'] = 'SwAV'
+
+    results['not_noise'] = 100 - results['noise']
+    results['davies_bouldin-1'] = 1 / results['davies_bouldin']
+
+    seaborn.set()
+    i = 1
+    pyplot.figure(figsize=(10, 3))
+    pyplot.suptitle('Comparison of clustering')
+    for metric in ['not_noise', 'calinski_harabasz', 'silhouette', 'davies_bouldin-1']:
+        pyplot.subplot(1, 4, i)
+        seaborn.boxplot(x='method', y=metric, data=results)
+        pyplot.title(metric)
+        i += 1
+    pyplot.tight_layout()
     pyplot.show()
 
 
@@ -574,4 +598,5 @@ if __name__ == "__main__":
 
     if plot:
         plot_similarity_results()
-        # collect_and_plot_classification_results()
+        plot_clustering_results()
+        collect_and_plot_classification_results()
