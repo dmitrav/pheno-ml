@@ -35,67 +35,68 @@ class Classifier(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-def train_classifier_with_pretrained_encoder(epochs, model_name, device=torch.device('cuda'), batch_size=256):
+def train_classifier_with_pretrained_encoder(epochs, models, device=torch.device('cuda'), batch_size=256):
 
     path_to_images = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
 
-    # save_path = 'D:\ETH\projects\morpho-learner\\res\\linear_evaluation\\{}\\'.format(model_name)
-    save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/linear_evaluation/{}/'.format(model_name)
+    for model_name in models:
 
-    transform = get_f_transform(model_name, device=device)
+        save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/{}/'.format(model_name)
 
-    all_drugs_codes = []
-    all_controls_codes = []
-    for cell_line in tqdm(cell_lines):
+        transform = get_f_transform(model_name, device=device)
 
-        all_drugs_wells = []
-        for drug in drugs:
-            max_conc_drug_wells, plate = get_wells_of_drug_for_cell_line(cell_line, drug)
-            all_drugs_wells.extend([plate + '_' + well for well in max_conc_drug_wells])
+        all_drugs_codes = []
+        all_controls_codes = []
+        for cell_line in tqdm(cell_lines):
 
-        p1_dmso_wells, _ = get_wells_of_drug_for_cell_line(cell_line, 'DMSO', plate='P1')
-        p2_dmso_wells, _ = get_wells_of_drug_for_cell_line(cell_line, 'DMSO', plate='P2')
-        pbs_wells, plate = get_wells_of_drug_for_cell_line(cell_line, 'PBS')
+            all_drugs_wells = []
+            for drug in drugs:
+                max_conc_drug_wells, plate = get_wells_of_drug_for_cell_line(cell_line, drug)
+                all_drugs_wells.extend([plate + '_' + well for well in max_conc_drug_wells])
 
-        all_controls_wells = [
-            *['P1_' + well for well in p1_dmso_wells],
-            *['P2_' + well for well in p2_dmso_wells],
-            *[plate + '_' + well for well in pbs_wells]
-        ]
+            p1_dmso_wells, _ = get_wells_of_drug_for_cell_line(cell_line, 'DMSO', plate='P1')
+            p2_dmso_wells, _ = get_wells_of_drug_for_cell_line(cell_line, 'DMSO', plate='P2')
+            pbs_wells, plate = get_wells_of_drug_for_cell_line(cell_line, 'PBS')
 
-        drug_codes, _ = get_image_encodings_of_cell_line(path_to_images, cell_line, all_drugs_wells, transform=transform, last_n=15)
-        control_codes, _ = get_image_encodings_of_cell_line(path_to_images, cell_line, all_controls_wells, transform=transform, last_n=23)
+            all_controls_wells = [
+                *['P1_' + well for well in p1_dmso_wells],
+                *['P2_' + well for well in p2_dmso_wells],
+                *[plate + '_' + well for well in pbs_wells]
+            ]
 
-        all_drugs_codes.extend(drug_codes)
-        all_controls_codes.extend(control_codes)
+            drug_codes, _ = get_image_encodings_of_cell_line(path_to_images, cell_line, all_drugs_wells, transform=transform, last_n=15)
+            control_codes, _ = get_image_encodings_of_cell_line(path_to_images, cell_line, all_controls_wells, transform=transform, last_n=23)
 
-    print("train set: {} drugs, {} controls".format(len(all_drugs_codes), len(all_controls_codes)))
+            all_drugs_codes.extend(drug_codes)
+            all_controls_codes.extend(control_codes)
 
-    # make datasets
-    x_train = [*all_drugs_codes, *all_controls_codes]
-    y_train = [*[1 for x in range(len(all_drugs_codes))], *[0 for x in range(len(all_controls_codes))]]
-    train_dataset = TensorDataset(torch.Tensor(x_train), torch.LongTensor(y_train))
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        print("train set: {} drugs, {} controls".format(len(all_drugs_codes), len(all_controls_codes)))
 
-    model = Classifier().to(device)
+        # make datasets
+        x_train = [*all_drugs_codes, *all_controls_codes]
+        y_train = [*[1 for x in range(len(all_drugs_codes))], *[0 for x in range(len(all_controls_codes))]]
+        train_dataset = TensorDataset(torch.Tensor(x_train), torch.LongTensor(y_train))
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-    lrs = [0.1, 0.05, 0.01]
-    ms = [0.9, 0.8, 0.7]
-    wds = [1e-3, 1e-4, 1e-5]
+        model = Classifier().to(device)
 
-    for lr in lrs:
-        for m in ms:
-            for wd in wds:
+        lrs = [0.1, 0.05, 0.01]
+        ms = [0.9, 0.8, 0.7]
+        wds = [1e-3, 1e-4, 1e-5]
 
-                params = 'lr={},m={},wd={}'.format(lr, m, wd)
-                if not os.path.exists(save_path + '/' + params + '/'):
-                    os.makedirs(save_path + '/' + params + '/')
+        for lr in lrs:
+            for m in ms:
+                for wd in wds:
 
-                optimizer = optim.SGD(model.parameters(), lr=lr, momentum=m, weight_decay=wd)
-                criterion = nn.CrossEntropyLoss()
+                    params = 'lr={},m={},wd={}'.format(lr, m, wd)
+                    if not os.path.exists(save_path + '/' + params + '/'):
+                        os.makedirs(save_path + '/' + params + '/')
 
-                last_train_acc, last_val_acc = run_supervised_classifier_training(train_loader, model, optimizer, criterion, device,
-                                                                                  epochs=epochs, save_to=save_path + '/' + params + '/')
+                    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=m, weight_decay=wd)
+                    criterion = nn.CrossEntropyLoss()
+
+                    last_train_acc, last_val_acc = run_supervised_classifier_training(train_loader, model, optimizer, criterion, device,
+                                                                                      epochs=epochs, save_to=save_path + '/' + params + '/')
 
 
 def run_supervised_classifier_training(loader_train, model, optimizer, criterion, device,
@@ -177,7 +178,7 @@ def run_supervised_classifier_training(loader_train, model, optimizer, criterion
     return train_acc, val_acc
 
 
-def collect_and_plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/linear_evaluation/'):
+def collect_and_plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/'):
 
     results = {
         'models': [], 'lrs': [], 'ms': [], 'wds': [],
@@ -218,14 +219,4 @@ def collect_and_plot_classification_results(path_to_results='/Users/andreidm/ETH
 
 
 if __name__ == '__main__':
-
-    train = False
-
-    if train:
-        epochs = 25
-        batch_size = 1024
-        device = torch.device('cpu')
-        for model in ['resnet50', 'swav_resnet50']:
-            train_classifier_with_pretrained_encoder(epochs, model, batch_size=batch_size, device=device)
-
-    collect_and_plot_classification_results()
+    pass
