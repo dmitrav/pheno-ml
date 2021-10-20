@@ -41,13 +41,12 @@ class Classifier(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-def train_classifier_with_pretrained_encoder(epochs, models, device=torch.device('cuda'), batch_size=256):
+def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, device=torch.device('cuda'), batch_size=256):
 
     path_to_images = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
+    save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/'
 
     for model_name in models:
-
-        save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/{}/'.format(model_name)
 
         transform = get_f_transform(model_name, device=device)
 
@@ -95,14 +94,43 @@ def train_classifier_with_pretrained_encoder(epochs, models, device=torch.device
                 for wd in wds:
 
                     params = 'lr={},m={},wd={}'.format(lr, m, wd)
-                    if not os.path.exists(save_path + '/' + params + '/'):
-                        os.makedirs(save_path + '/' + params + '/')
+                    if not os.path.exists(save_path + '{}/{}/'.format(model_name, params)):
+                        os.makedirs(save_path + '{}/{}/'.format(model_name, params))
 
                     optimizer = optim.SGD(model.parameters(), lr=lr, momentum=m, weight_decay=wd)
                     criterion = nn.CrossEntropyLoss()
 
                     last_train_acc, last_val_acc = run_supervised_classifier_training(train_loader, model, optimizer, criterion, device,
-                                                                                      epochs=epochs, save_to=save_path + '/' + params + '/')
+                                                                                      epochs=epochs, save_to=save_path + '{}/{}/'.format(model_name, params))
+
+    # collect and save results
+    results = {
+        'models': [], 'lrs': [], 'ms': [], 'wds': [],
+        'epoch': [], 'accuracy': [], 'recall': [], 'precision': [], 'specificity': [], 'f1': []
+    }
+
+    for model_name in models:
+        for param_set in os.listdir(save_path + model_name):
+            data = pandas.read_csv(save_path + '{}/{}/history.csv'.format(model_name, param_set))
+            best_f1_data = data.loc[data['f1'] == data['f1'].max(), :]
+
+            results['lrs'].append(float(param_set.split(',')[0].split('=')[1]))
+            results['ms'].append(float(param_set.split(',')[1].split('=')[1]))
+            results['wds'].append(float(param_set.split(',')[2].split('=')[1]))
+            results['epoch'].append(int(best_f1_data['epoch']))
+            results['accuracy'].append(float(best_f1_data['accuracy']))
+            results['recall'].append(float(best_f1_data['recall']))
+            results['precision'].append(float(best_f1_data['precision']))
+            results['specificity'].append(float(best_f1_data['specificity']))
+            results['f1'].append(float(best_f1_data['f1']))
+            if model == 'resnet50':
+                results['models'].append('ResNet-50')
+            else:
+                results['models'].append('SwAV')
+
+    results_df = pandas.DataFrame(results)
+    results_df.to_csv(save_path + 'classification.csv')
+
 
 
 def run_supervised_classifier_training(loader_train, model, optimizer, criterion, device,
@@ -184,34 +212,9 @@ def run_supervised_classifier_training(loader_train, model, optimizer, criterion
     return train_acc, val_acc
 
 
-def collect_and_plot_classification_results(models, path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/'):
+def collect_and_plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_pretrained.csv'):
 
-    results = {
-        'models': [], 'lrs': [], 'ms': [], 'wds': [],
-        'epoch': [], 'accuracy': [], 'recall': [], 'precision': [], 'specificity': [], 'f1': []
-    }
-
-    for model in models:
-        for param_set in os.listdir(path_to_results + model):
-            data = pandas.read_csv(path_to_results + model + '/' + param_set + '/history.csv')
-            best_f1_data = data.loc[data['f1'] == data['f1'].max(), :]
-
-            results['lrs'].append(float(param_set.split(',')[0].split('=')[1]))
-            results['ms'].append(float(param_set.split(',')[1].split('=')[1]))
-            results['wds'].append(float(param_set.split(',')[2].split('=')[1]))
-            results['epoch'].append(int(best_f1_data['epoch']))
-            results['accuracy'].append(float(best_f1_data['accuracy']))
-            results['recall'].append(float(best_f1_data['recall']))
-            results['precision'].append(float(best_f1_data['precision']))
-            results['specificity'].append(float(best_f1_data['specificity']))
-            results['f1'].append(float(best_f1_data['f1']))
-            if model == 'resnet50':
-                results['models'].append('ResNet-50')
-            else:
-                results['models'].append('SwAV')
-
-    results_df = pandas.DataFrame(results)
-    results_df.to_csv(path_to_results + 'classification.csv')
+    results = pandas.read_csv(path_to_results)
 
     i = 1
     seaborn.set()
@@ -219,7 +222,7 @@ def collect_and_plot_classification_results(models, path_to_results='/Users/andr
     pyplot.suptitle('Comparison of drug-control classification')
     for metric in ['accuracy', 'recall', 'precision', 'specificity', 'f1']:
         pyplot.subplot(1, 5, i)
-        seaborn.boxplot(x='models', y=metric, data=results_df)
+        seaborn.boxplot(x='models', y=metric, data=results)
         pyplot.title(metric)
         i += 1
     pyplot.tight_layout()
@@ -537,6 +540,9 @@ def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_imag
 def plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_pretrained.csv'):
 
     results = pandas.read_csv(path_to_results)
+
+    results.loc[results['method'] == 'resnet50', 'method'] = 'ResNet-50'
+    results.loc[results['method'] == 'swav_resnet50', 'method'] = 'SwAV'
     methods = list(results['method'].unique())
 
     seaborn.set()
@@ -595,9 +601,9 @@ if __name__ == "__main__":
         # clustering analysis within cell lines
         collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines_pretrained', device=device)
         # classification of drugs vs controls
-        train_classifier_with_pretrained_encoder(25, models, batch_size=1024, device=device)
+        train_classifiers_with_pretrained_encoder_and_save_results(25, models, batch_size=1024, device=device)
 
     if plot:
         plot_similarity_results()
         plot_clustering_results()
-        collect_and_plot_classification_results(models)
+        collect_and_plot_classification_results()
