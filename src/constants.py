@@ -1,5 +1,5 @@
 
-version = 'v.0.2.9'
+version = 'v.0.2.10'
 user = 'andreidm'
 
 cropped_data_path = '/Users/{}/ETH/projects/pheno-ml/data/cropped/'.format(user)
@@ -18,7 +18,7 @@ drugs = ['Chlormethine', 'Clofarabine', 'Panzem-2-ME2', 'Pemetrexed', 'Asparagin
          'UK5099', 'Fluorouracil', 'Everolimus', 'MEDICA 16', 'BPTES',
          'Oligomycin A', 'Trametinib', 'Oxaliplatin', 'Rapamycin', 'Etomoxir',
          'Lenvatinib', 'Oxfenicine', 'Mercaptopurine', 'Metformin', 'Omacetaxine',
-         'Cladribine', 'Paclitaxel', 'Methotrexate', 'PBS', 'Topotecan',
+         'Cladribine', 'Paclitaxel', 'Methotrexate', 'Topotecan',
          'YC-1', 'Decitabine']
 
 markers = ('.', ',', 'o', 'v', '^',

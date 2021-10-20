@@ -50,8 +50,8 @@ def get_image_encodings_from_path(path, common_image_ids, transform, n=None, ran
     return encodings, image_ids
 
 
-def get_image_encodings_of_cell_line(path, cell_line, drugs_wells, transform):
-    """ Gets the last 10 timepoints of each drug. For a big dataset this should work faster. """
+def get_image_encodings_of_cell_line(path, cell_line, drugs_wells, transform, last_n=10):
+    """ Gets the last n time points of each drug. For a big dataset this should work faster. """
 
     filenames = []
     for file in os.listdir(path):
@@ -64,9 +64,9 @@ def get_image_encodings_of_cell_line(path, cell_line, drugs_wells, transform):
     latest_timepoints_filenames = []
     while i < len(filenames)-1:
         if filenames[i].split('_')[3] != filenames[i+1].split('_')[3]:
-            latest_timepoints_filenames.extend(filenames[i-9:i+1])
+            latest_timepoints_filenames.extend(filenames[i-last_n+1:i+1])
         i += 1
-    latest_timepoints_filenames.extend(filenames[-10:])
+    latest_timepoints_filenames.extend(filenames[-last_n:])
     filenames = latest_timepoints_filenames
 
     image_ids = {
@@ -104,8 +104,8 @@ def get_f_transform(method_name, device=torch.device('cpu')):
                 ), 0)
         ).reshape(-1)
 
-    elif method_name == 'byol_resnet50':
-        # upload  resnet50, pretrained with byol
+    elif method_name == 'swav_resnet50':
+        # upload  resnet50, pretrained with SwAV
         model = pretrained.get_self_supervised_resnet()
         transform = lambda x: model(
             torch.unsqueeze(  # add batch dimension
@@ -326,12 +326,9 @@ if __name__ == "__main__":
     # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
     path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
     # models = os.listdir('D:\ETH\projects\pheno-ml\\res\\byol\\')
-    models = ['resnet50', 'byol_resnet50']
+    models = ['resnet50', 'swav_resnet50']
 
     device = torch.device('cpu')
     compare_similarity(path_to_data, models, uid='pretrained', device=device)
     collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10),
                                                                     uid='by_cell_lines_pretrained', device=device)
-    # TODO:
-    #  - train classifiers,
-    #  - evaluate classifications
