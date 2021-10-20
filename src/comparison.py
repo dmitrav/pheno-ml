@@ -184,14 +184,14 @@ def run_supervised_classifier_training(loader_train, model, optimizer, criterion
     return train_acc, val_acc
 
 
-def collect_and_plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/'):
+def collect_and_plot_classification_results(models, path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/'):
 
     results = {
         'models': [], 'lrs': [], 'ms': [], 'wds': [],
         'epoch': [], 'accuracy': [], 'recall': [], 'precision': [], 'specificity': [], 'f1': []
     }
 
-    for model in os.listdir(path_to_results):
+    for model in models:
         for param_set in os.listdir(path_to_results + model):
             data = pandas.read_csv(path_to_results + model + '/' + param_set + '/history.csv')
             best_f1_data = data.loc[data['f1'] == data['f1'].max(), :]
@@ -211,6 +211,7 @@ def collect_and_plot_classification_results(path_to_results='/Users/andreidm/ETH
                 results['models'].append('SwAV')
 
     results_df = pandas.DataFrame(results)
+    results_df.to_csv(path_to_results + 'classification.csv')
 
     i = 1
     seaborn.set()
@@ -599,4 +600,4 @@ if __name__ == "__main__":
     if plot:
         plot_similarity_results()
         plot_clustering_results()
-        collect_and_plot_classification_results()
+        collect_and_plot_classification_results(models)
