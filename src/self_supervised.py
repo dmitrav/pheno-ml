@@ -14,19 +14,19 @@ class DeepClassifier(nn.Module):
         super().__init__()
 
         self.model = nn.Sequential(
-            nn.Conv2d(1, 64, (3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.Conv2d(1, 64, (3, 3), stride=(1, 1), padding=(1, 1)),  # 64 x 128 x 128
             nn.ReLU(True),
-            nn.MaxPool2d(2),
+            nn.MaxPool2d(2),  # 64 x 64 x 64
 
-            nn.Conv2d(64, 32, (3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.Conv2d(64, 32, (3, 3), stride=(1, 1), padding=(1, 1)),  # 32 x 64 x 64
             nn.ReLU(True),
-            nn.MaxPool2d(2),
+            nn.MaxPool2d(2),  # 32 x 32 x 32
 
-            nn.Conv2d(32, 16, (3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.Conv2d(32, 16, (3, 3), stride=(1, 1), padding=(1, 1)),  # 16 x 32 x 32
             nn.ReLU(True),
-            nn.MaxPool2d(2),
+            nn.MaxPool2d(2),  # 16 x 16 x 16
 
-            nn.Conv2d(16, 16, (3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.Conv2d(16, 16, (3, 3), stride=(1, 1), padding=(1, 1)),  # 16 x 16 x 16
             nn.ReLU(True),
 
             nn.Conv2d(16, 8, (3, 3), stride=(1, 1), padding=(1, 1)),  # 8 x 16 x 16

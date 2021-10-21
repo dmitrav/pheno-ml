@@ -338,7 +338,7 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         ).reshape(-1)
     else:
         # upload my models
-        path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/res/pretrained/byol/{}/'.format(method_name)
+        path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/byol/{}/'.format(method_name)
         # path_to_model = 'D:\ETH\projects\pheno-ml\\res\\byol\\{}\\'.format(method_name)
         model = DeepClassifier().to(device)
         # load a trained deep classifier to use it in the transform
@@ -418,6 +418,8 @@ def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda'
         transform = get_f_transform(method_name, device=device)
 
         for cell_line in tqdm(cell_lines):
+
+            # TODO: make controls exactly the same for bot comparisons
 
             mtx_wells, plate = get_wells_of_drug_for_cell_line(cell_line, 'Methotrexate')
             mtx_controls_wells, _ = get_wells_of_drug_for_cell_line(cell_line, 'DMSO', plate=plate)
@@ -597,8 +599,8 @@ if __name__ == "__main__":
     # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
     path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
     # models = os.listdir('D:\ETH\projects\pheno-ml\\res\\byol\\')
-    # models = os.listdir('/Users/andreidm/ETH/projects/pheno-ml/pretrained/byol/')
-    models = ['resnet50', 'swav_resnet50']
+    models = os.listdir('/Users/andreidm/ETH/projects/pheno-ml/pretrained/byol/')
+    # models = ['resnet50', 'swav_resnet50']
 
     device = torch.device('cpu')
 
@@ -616,6 +618,6 @@ if __name__ == "__main__":
         train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
 
     if plot:
-        plot_similarity_results()
-        plot_clustering_results()
-        plot_classification_results()
+        plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_trained_half.csv')
+        plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_trained_half.csv')
+        plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_trained_half.csv')
