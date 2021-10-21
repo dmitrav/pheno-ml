@@ -403,6 +403,30 @@ def calculate_similarity_of_pair(codes_A, codes_B):
     return res
 
 
+def get_common_control_wells():
+    """ Get names of wells that correspond to controls (DMSO) for all cell lines. """
+
+    wells_by_cell_line = {}
+    unique_wells = set()
+    for cell_line in cell_lines:
+        wells, _ = get_wells_of_drug_for_cell_line(cell_line, 'DMSO')
+        wells_by_cell_line[cell_line] = wells
+        for well in wells:
+            unique_wells.add(well)
+
+    common_wells = []
+    for well in list(unique_wells):
+        present_everywhere = True
+        for cell_line in cell_lines:
+            if well not in wells_by_cell_line[cell_line]:
+                present_everywhere = False
+                break
+        if present_everywhere:
+            common_wells.append(well)
+
+    return common_wells
+
+
 def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda')):
 
     save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/'
@@ -413,41 +437,32 @@ def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda'
     results = {'group_by': [], 'method': [], 'comparison': [],
                'euclidean': [], 'cosine': [], 'correlation': [], 'braycurtis': []}
 
+    common_controls_wells = get_common_control_wells()
+
     for method_name in methods:
 
         transform = get_f_transform(method_name, device=device)
 
         for cell_line in tqdm(cell_lines):
 
-            # TODO: make controls exactly the same for bot comparisons
-
-            mtx_wells, plate = get_wells_of_drug_for_cell_line(cell_line, 'Methotrexate')
-            mtx_controls_wells, _ = get_wells_of_drug_for_cell_line(cell_line, 'DMSO', plate=plate)
-            mtx_controls_wells = random.sample(mtx_controls_wells, len(mtx_wells))
-
-            ptx_wells, plate = get_wells_of_drug_for_cell_line(cell_line, 'Pemetrexed')
-            ptx_controls_wells, _ = get_wells_of_drug_for_cell_line(cell_line, 'DMSO', plate=plate)
-            ptx_controls_wells = random.sample(ptx_controls_wells, len(ptx_wells))
+            mtx_wells, _ = get_wells_of_drug_for_cell_line(cell_line, 'Methotrexate')
+            ptx_wells, _ = get_wells_of_drug_for_cell_line(cell_line, 'Pemetrexed')
+            controls_wells = common_controls_wells[:len(mtx_wells)]  # take a few controls
 
             mtx_codes = []
             for well in mtx_wells:
                 encodings, _ = get_image_encodings_from_path(path_to_data, [well, cell_line], transform, n=10, randomize=False)
                 mtx_codes.extend(encodings)
 
-            mtx_controls_codes = []
-            for well in mtx_controls_wells:
-                encodings, _ = get_image_encodings_from_path(path_to_data, [well, cell_line], transform, n=10, randomize=False)
-                mtx_controls_codes.extend(encodings)
-
             ptx_codes = []
             for well in ptx_wells:
                 encodings, _ = get_image_encodings_from_path(path_to_data, [well, cell_line], transform, n=10, randomize=False)
                 ptx_codes.extend(encodings)
 
-            ptx_controls_codes = []
-            for well in ptx_controls_wells:
+            controls_codes = []
+            for well in controls_wells:
                 encodings, _ = get_image_encodings_from_path(path_to_data, [well, cell_line], transform, n=10, randomize=False)
-                ptx_controls_codes.extend(encodings)
+                controls_codes.extend(encodings)
 
             # compare Methotrexate with Pemetrexed
             results['group_by'].append(cell_line)
@@ -463,7 +478,7 @@ def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda'
             results['group_by'].append(cell_line)
             results['method'].append(method_name)
             results['comparison'].append('MTX-DMSO')
-            comparison = calculate_similarity_of_pair(mtx_codes, mtx_controls_codes)
+            comparison = calculate_similarity_of_pair(mtx_codes, controls_codes)
             results['euclidean'].append(comparison['euclidean'])
             results['cosine'].append(comparison['cosine'])
             results['correlation'].append(comparison['correlation'])
@@ -473,7 +488,7 @@ def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda'
             results['group_by'].append(cell_line)
             results['method'].append(method_name)
             results['comparison'].append('PTX-DMSO')
-            comparison = calculate_similarity_of_pair(ptx_codes, ptx_controls_codes)
+            comparison = calculate_similarity_of_pair(ptx_codes, controls_codes)
             results['euclidean'].append(comparison['euclidean'])
             results['cosine'].append(comparison['cosine'])
             results['correlation'].append(comparison['correlation'])
@@ -599,25 +614,25 @@ if __name__ == "__main__":
     # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
     path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
     # models = os.listdir('D:\ETH\projects\pheno-ml\\res\\byol\\')
-    models = os.listdir('/Users/andreidm/ETH/projects/pheno-ml/pretrained/byol/')
-    # models = ['resnet50', 'swav_resnet50']
+    # models = os.listdir('/Users/andreidm/ETH/projects/pheno-ml/pretrained/byol/')
+    models = ['resnet50', 'swav_resnet50']
 
     device = torch.device('cpu')
 
     evaluate = True
     plot = False
 
-    uid = 'trained_half'
+    uid = 'pretrained'
 
     if evaluate:
         # distance-based analysis of known drugs
         compare_similarity(path_to_data, models, uid=uid, device=device)
-        # clustering analysis within cell lines
-        collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines_{}'.format(uid), device=device)
-        # classification of drugs vs controls
-        train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
+        # # clustering analysis within cell lines
+        # collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines_{}'.format(uid), device=device)
+        # # classification of drugs vs controls
+        # train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
 
     if plot:
-        plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_trained_half.csv')
-        plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_trained_half.csv')
-        plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_trained_half.csv')
+        plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_pretrained.csv')
+        # plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_trained_half.csv')
+        # plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_trained_half.csv')
