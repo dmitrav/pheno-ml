@@ -1,5 +1,5 @@
 
-import os, pandas, torch, numpy, random, umap, time, seaborn
+import os, pandas, torch, numpy, random, umap, time, seaborn, itertools
 from hdbscan import HDBSCAN
 from torch.nn import Sequential
 from torchvision.io import read_image
@@ -355,7 +355,7 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         transform = lambda x: model(numpy.expand_dims(Resize(size=128)(x / 255.).numpy(), axis=-1))[0].numpy().reshape(-1)
 
     else:
-        # upload my models
+        # didn't work quite well with my self-supervised models...
         path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/byol/{}/'.format(method_name)
         # path_to_model = 'D:\ETH\projects\pheno-ml\\res\\byol\\{}\\'.format(method_name)
         model = DeepClassifier().to(device)
@@ -396,20 +396,23 @@ def get_wells_of_drug_for_cell_line(cell_line, drug, plate=''):
             return wells, plate
 
 
-def calculate_similarity_of_pair(codes_A, codes_B):
+def calculate_distances_for_all_well_pairs(drug_codes):
 
     d_2 = []
     d_cos = []
     d_corr = []
     d_bray = []
 
-    for code_a in codes_A:
-        for code_b in codes_B:
+    well_pairs = itertools.combinations([x for x in range(len(drug_codes))], 2)
 
-            d_2.append(pdist([code_a, code_b], metric='euclidean'))
-            d_cos.append(pdist([code_a, code_b], metric='cosine'))
-            d_corr.append(pdist([code_a, code_b], metric='correlation'))
-            d_bray.append(pdist([code_a, code_b], metric='braycurtis'))
+    for i, j in well_pairs:
+        for k in range(len(drug_codes[i])):
+            # we're computing distances between biological replicates essentially
+            # they are expected to be small at any time point
+            d_2.append(pdist([drug_codes[i][k], drug_codes[j][k]], metric='euclidean'))
+            d_cos.append(pdist([drug_codes[i][k], drug_codes[j][k]], metric='cosine'))
+            d_corr.append(pdist([drug_codes[i][k], drug_codes[j][k]], metric='correlation'))
+            d_bray.append(pdist([drug_codes[i][k], drug_codes[j][k]], metric='braycurtis'))
 
     res = {
         'euclidean': numpy.median(d_2),
@@ -452,68 +455,34 @@ def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda'
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
-    results = {'group_by': [], 'method': [], 'comparison': [],
+    results = {'cell_line': [], 'drug': [], 'method': [],
                'euclidean': [], 'cosine': [], 'correlation': [], 'braycurtis': []}
 
-    common_controls_wells = get_common_control_wells()
-
     for method_name in methods:
-
         transform = get_f_transform(method_name, device=device)
 
         for cell_line in tqdm(cell_lines):
+            for drug in drugs:
 
-            mtx_wells, _ = get_wells_of_drug_for_cell_line(cell_line, 'Methotrexate')
-            ptx_wells, _ = get_wells_of_drug_for_cell_line(cell_line, 'Pemetrexed')
-            controls_wells = common_controls_wells[:len(mtx_wells)]  # take a few controls
+                drug_wells, _ = get_wells_of_drug_for_cell_line(cell_line, drug)
 
-            mtx_codes = []
-            for well in mtx_wells:
-                encodings, _ = get_image_encodings_from_path(path_to_data, [well, cell_line], transform, n=10, randomize=False)
-                mtx_codes.extend(encodings)
+                drug_codes = []
+                for well in drug_wells:
+                    encodings, _ = get_image_encodings_from_path(path_to_data, [well, cell_line], transform, n=5, randomize=False)
+                    drug_codes.append(encodings)
 
-            ptx_codes = []
-            for well in ptx_wells:
-                encodings, _ = get_image_encodings_from_path(path_to_data, [well, cell_line], transform, n=10, randomize=False)
-                ptx_codes.extend(encodings)
-
-            controls_codes = []
-            for well in controls_wells:
-                encodings, _ = get_image_encodings_from_path(path_to_data, [well, cell_line], transform, n=10, randomize=False)
-                controls_codes.extend(encodings)
-
-            # compare Methotrexate with Pemetrexed
-            results['group_by'].append(cell_line)
-            results['method'].append(method_name)
-            results['comparison'].append('MTX-PTX')
-            comparison = calculate_similarity_of_pair(mtx_codes, ptx_codes)
-            results['euclidean'].append(comparison['euclidean'])
-            results['cosine'].append(comparison['cosine'])
-            results['correlation'].append(comparison['correlation'])
-            results['braycurtis'].append(comparison['braycurtis'])
-
-            # compare Methotrexate with DMSO (control)
-            results['group_by'].append(cell_line)
-            results['method'].append(method_name)
-            results['comparison'].append('MTX-DMSO')
-            comparison = calculate_similarity_of_pair(mtx_codes, controls_codes)
-            results['euclidean'].append(comparison['euclidean'])
-            results['cosine'].append(comparison['cosine'])
-            results['correlation'].append(comparison['correlation'])
-            results['braycurtis'].append(comparison['braycurtis'])
-
-            # compare Pemetrexed with DMSO (control)
-            results['group_by'].append(cell_line)
-            results['method'].append(method_name)
-            results['comparison'].append('PTX-DMSO')
-            comparison = calculate_similarity_of_pair(ptx_codes, controls_codes)
-            results['euclidean'].append(comparison['euclidean'])
-            results['cosine'].append(comparison['cosine'])
-            results['correlation'].append(comparison['correlation'])
-            results['braycurtis'].append(comparison['braycurtis'])
+                # compare Methotrexate with Pemetrexed
+                results['method'].append(method_name)
+                results['cell_line'].append(cell_line)
+                results['drug'].append(drug)
+                distances = calculate_distances_for_all_well_pairs(drug_codes)
+                results['euclidean'].append(distances['euclidean'])
+                results['cosine'].append(distances['cosine'])
+                results['correlation'].append(distances['correlation'])
+                results['braycurtis'].append(distances['braycurtis'])
 
     results = pandas.DataFrame(results)
-    results.to_csv(save_to + 'similarity_{}.csv'.format(uid), index=False)
+    results.to_csv(save_to + 'similarity{}.csv'.format(uid), index=False)
 
 
 def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_images, methods, range_with_step, uid='', device=torch.device('cuda')):
@@ -647,11 +616,11 @@ if __name__ == "__main__":
     uid = ''
 
     if evaluate:
-        # distance-based analysis of known drugs
+        # distance-based analysis
         compare_similarity(path_to_data, models, uid=uid, device=device)
 
         # # clustering analysis within cell lines
-        # collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines_{}'.format(uid), device=device)
+        # collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines{}'.format(uid), device=device)
         # # classification of drugs vs controls
         # train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
 
