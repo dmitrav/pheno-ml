@@ -124,8 +124,8 @@ def visualize_results(data_batches, trained_ae, save_to):
         pyplot.title("reconstruction")
 
     pyplot.tight_layout()
-    # pyplot.show()
-    pyplot.savefig(save_to+'reconstruction.pdf')
+    pyplot.show()
+    # pyplot.savefig(save_to+'reconstruction.pdf')
 
 
 def plot_loss(history, n_epochs):
@@ -204,7 +204,7 @@ def create_and_save_encodings_for_well(well_meta, image_paths, save_to_path):
         image = tf.io.read_file(path)
         image = tf.image.decode_jpeg(image, channels=1)
         image = tf.image.resize(image, [autoencoder.input.shape[1], autoencoder.input.shape[2]])
-        image /= 255.0
+        image /= 255.
 
         image = numpy.expand_dims(image, axis=0)
 
@@ -274,6 +274,19 @@ def generate_encodings_for_batches():
                             assert meta_data.shape[0] == len(image_paths)
 
                         create_and_save_encodings_for_well(meta_data, image_paths, save_to)
+
+
+def get_trained_autoencoder():
+
+    target_size = (128, 128)
+    weights = '/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae_cropped_128_adam_at_16_0.6880.h5'
+    _, _, autoencoder = create_autoencoder_model(target_size)
+    autoencoder.compile()
+    autoencoder.summary()
+    autoencoder.load_weights(weights)
+
+    encoder = Model(autoencoder.input, autoencoder.layers[-2].output)
+    return encoder
 
 
 def load_model_and_plot_results(save_to):

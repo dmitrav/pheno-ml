@@ -1,5 +1,5 @@
 
-version = 'v.0.2.18'
+version = 'v.0.2.19'
 user = 'andreidm'
 
 cropped_data_path = '/Users/{}/ETH/projects/pheno-ml/data/cropped/'.format(user)

@@ -12,6 +12,7 @@ from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
 from torchmetrics import Accuracy, Recall, Precision, Specificity
 
+from src.autoencoder import get_trained_autoencoder
 from src.self_supervised import DeepClassifier
 from src.constants import cell_lines, drugs
 from src import pretrained
@@ -19,13 +20,13 @@ from src import pretrained
 
 class Classifier(nn.Module):
 
-    def __init__(self):
+    def __init__(self, in_dim=2048):
         super().__init__()
 
         # plugs in after convolutional autoencoder -> needs flattening of the filters
         self.model = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(2048, 256),
+            nn.Linear(in_dim, 256),
             nn.LeakyReLU(),
             nn.Linear(256, 2),
             nn.Softmax(dim=1)
@@ -83,7 +84,10 @@ def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, u
         train_dataset = TensorDataset(torch.Tensor(x_train), torch.LongTensor(y_train))
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-        model = Classifier().to(device)
+        if model_name == 'trained_ae':
+            model = Classifier(in_dim=4096).to(device)
+        else:
+            model = Classifier().to(device)
 
         lrs = [0.1, 0.05, 0.01]
         ms = [0.9, 0.8, 0.7]
@@ -127,6 +131,8 @@ def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, u
                 results['models'].append('ResNet-50')
             elif model_name == 'swav_resnet50':
                 results['models'].append('SwAV')
+            elif model_name == 'trained_ae':
+                results['models'].append('AE')
             else:
                 results['models'].append('BYOL*')
 
@@ -262,7 +268,7 @@ def get_image_encodings_from_path(path, common_image_ids, transform, n=None, ran
     for file in filenames:
         img = read_image(path + file)
         img_encoded = transform(img)
-        encodings.append(img_encoded.detach().cpu().numpy())
+        encodings.append(img_encoded)
 
     return encodings, image_ids
 
@@ -298,7 +304,7 @@ def get_image_encodings_of_cell_line(path, cell_line, drugs_wells, transform, la
     for file in filenames:
         img = read_image(path + file)
         img_encoded = transform(img)
-        encodings.append(img_encoded.detach().cpu().numpy())
+        encodings.append(img_encoded)
 
     return encodings, image_ids
 
@@ -319,7 +325,7 @@ def get_f_transform(method_name, device=torch.device('cpu')):
                         )
                     )
                 ), 0)
-        ).reshape(-1)
+        ).reshape(-1).detach().cpu().numpy()
 
     elif method_name == 'swav_resnet50':
         # upload  resnet50, pretrained with SwAV
@@ -335,7 +341,14 @@ def get_f_transform(method_name, device=torch.device('cpu')):
                         )
                     )
                 ), 0)
-        ).reshape(-1)
+        ).reshape(-1).detach().cpu().numpy()
+
+    elif method_name == 'trained_ae':
+        # upload trained autoencoder
+        # (attention: tensorflow)
+        model = get_trained_autoencoder()
+        transform = lambda x: model(numpy.expand_dims(Resize(size=128)(x / 255.).numpy(), axis=-1))[0].numpy().reshape(-1)
+
     else:
         # upload my models
         path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/byol/{}/'.format(method_name)
@@ -356,7 +369,7 @@ def get_f_transform(method_name, device=torch.device('cpu')):
                         )
                     )
                 ), 0)
-        ).reshape(-1)
+        ).reshape(-1).detach().cpu().numpy()
 
     return transform
 
@@ -614,25 +627,25 @@ if __name__ == "__main__":
     # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
     path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
     # models = os.listdir('D:\ETH\projects\pheno-ml\\res\\byol\\')
-    # models = os.listdir('/Users/andreidm/ETH/projects/pheno-ml/pretrained/byol/')
-    models = ['resnet50', 'swav_resnet50']
+    # models = ['resnet50', 'swav_resnet50']
+    models = ['trained_ae']
 
     device = torch.device('cpu')
 
-    evaluate = True
-    plot = False
+    evaluate = False
+    plot = True
 
-    uid = 'pretrained'
+    uid = 'trained_ae'
 
     if evaluate:
-        # distance-based analysis of known drugs
-        compare_similarity(path_to_data, models, uid=uid, device=device)
-        # # clustering analysis within cell lines
-        # collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines_{}'.format(uid), device=device)
-        # # classification of drugs vs controls
-        # train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
+        # # distance-based analysis of known drugs
+        # compare_similarity(path_to_data, models, uid=uid, device=device)
+        # clustering analysis within cell lines
+        collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines_{}'.format(uid), device=device)
+        # classification of drugs vs controls
+        train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
 
     if plot:
-        plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_pretrained.csv')
-        # plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_trained_half.csv')
-        # plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_trained_half.csv')
+        # plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_trained_ae.csv')
+        # plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_trained_ae.csv')
+        plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_trained_ae.csv')
