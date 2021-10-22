@@ -219,18 +219,23 @@ def run_supervised_classifier_training(loader_train, model, optimizer, criterion
     return train_acc, val_acc
 
 
-def plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_pretrained.csv'):
+def plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification.csv'):
 
     results = pandas.read_csv(path_to_results)
+
+    results.loc[results['models'] == 'ResNet-50', 'models'] = 'ResNet-50\n(pretrained)'
+    results.loc[results['models'] == 'SwAV', 'models'] = 'SwAV\n(pretrained)'
+    results.loc[results['models'] == 'trained_ae', 'models'] = 'ConvAE\n(trained)'
 
     i = 1
     seaborn.set()
     pyplot.figure(figsize=(12,3))
     pyplot.suptitle('Comparison of drug-control classification')
-    for metric in ['accuracy', 'recall', 'precision', 'specificity', 'f1']:
+    for metric in ['accuracy', 'recall', 'specificity', 'f1']:
         pyplot.subplot(1, 5, i)
         seaborn.boxplot(x='models', y=metric, data=results)
         pyplot.title(metric)
+        pyplot.xticks(rotation=45)
         i += 1
     pyplot.tight_layout()
     pyplot.show()
@@ -573,13 +578,13 @@ def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_imag
     results.to_csv(save_to + 'clustering_{}.csv'.format(uid), index=False)
 
 
-def plot_similarity_results(pretrained=False, path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_pretrained.csv'):
+def plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity.csv'):
 
     results = pandas.read_csv(path_to_results)
 
-    if pretrained:
-        results.loc[results['method'] == 'resnet50', 'method'] = 'ResNet-50'
-        results.loc[results['method'] == 'swav_resnet50', 'method'] = 'SwAV'
+    results.loc[results['method'] == 'resnet50', 'method'] = 'ResNet-50\n(pretrained)'
+    results.loc[results['method'] == 'swav_resnet50', 'method'] = 'SwAV\n(pretrained)'
+    results.loc[results['method'] == 'trained_ae', 'method'] = 'ConvAE\n(trained)'
 
     methods = list(results['method'].unique())
 
@@ -598,25 +603,31 @@ def plot_similarity_results(pretrained=False, path_to_results='/Users/andreidm/E
     pyplot.show()
 
 
-def plot_clustering_results(pretrained=False, path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_pretrained.csv'):
+def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines.csv'):
 
     results = pandas.read_csv(path_to_results)
 
-    if pretrained:
-        results.loc[results['method'] == 'resnet50', 'method'] = 'ResNet-50'
-        results.loc[results['method'] == 'swav_resnet50', 'method'] = 'SwAV'
+    results.loc[results['method'] == 'resnet50', 'method'] = 'ResNet-50\n(pretrained)'
+    results.loc[results['method'] == 'swav_resnet50', 'method'] = 'SwAV\n(pretrained)'
+    results.loc[results['method'] == 'trained_ae', 'method'] = 'ConvAE\n(trained)'
+
+    # filter out failed clustering attempts for better visualization
+    results = results.drop(results.loc[results['silhouette'] == -1, :].index)
+    # filter out too high calinski-harabasz values for better visualization
+    results = results.drop(results.loc[results['calinski_harabasz'] > 20000, :].index)
 
     results['not_noise'] = 100 - results['noise']
     results['davies_bouldin-1'] = 1 / results['davies_bouldin']
 
     seaborn.set()
     i = 1
-    pyplot.figure(figsize=(10, 3))
+    pyplot.figure(figsize=(12, 3))
     pyplot.suptitle('Comparison of clustering')
     for metric in ['not_noise', 'calinski_harabasz', 'silhouette', 'davies_bouldin-1']:
         pyplot.subplot(1, 4, i)
         seaborn.boxplot(x='method', y=metric, data=results)
         pyplot.title(metric)
+        pyplot.xticks(rotation=45)
         i += 1
     pyplot.tight_layout()
     pyplot.show()
@@ -626,26 +637,25 @@ if __name__ == "__main__":
 
     # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
     path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
-    # models = os.listdir('D:\ETH\projects\pheno-ml\\res\\byol\\')
-    # models = ['resnet50', 'swav_resnet50']
-    models = ['trained_ae']
+    models = ['resnet50', 'swav_resnet50', 'trained_ae']
 
     device = torch.device('cpu')
 
-    evaluate = False
-    plot = True
+    evaluate = True
+    plot = False
 
-    uid = 'trained_ae'
+    uid = ''
 
     if evaluate:
-        # # distance-based analysis of known drugs
-        # compare_similarity(path_to_data, models, uid=uid, device=device)
-        # clustering analysis within cell lines
-        collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines_{}'.format(uid), device=device)
-        # classification of drugs vs controls
-        train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
+        # distance-based analysis of known drugs
+        compare_similarity(path_to_data, models, uid=uid, device=device)
+
+        # # clustering analysis within cell lines
+        # collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines_{}'.format(uid), device=device)
+        # # classification of drugs vs controls
+        # train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
 
     if plot:
-        # plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_trained_ae.csv')
-        # plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_trained_ae.csv')
-        plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_trained_ae.csv')
+        # plot_similarity_results()
+        plot_clustering_results()
+        plot_classification_results()
