@@ -20,13 +20,24 @@ def get_supervised_resnet():
     return resnet50
 
 
-def get_self_supervised_resnet():
+def get_self_supervised_vit():
+    vitb8 = torch.hub.load('facebookresearch/dino:main', 'dino_vitb8')
+    return vitb8
 
-    weight_path = 'https://pl-bolts-weights.s3.us-east-2.amazonaws.com/swav/swav_imagenet/swav_imagenet.pth.tar'
-    swav = SwAV.load_from_checkpoint(weight_path, strict=True)
-    swav.freeze()
 
-    return swav
+def get_self_supervised_resnet(method='swav'):
+
+    if method == 'swav':
+        weight_path = 'https://pl-bolts-weights.s3.us-east-2.amazonaws.com/swav/swav_imagenet/swav_imagenet.pth.tar'
+        model = SwAV.load_from_checkpoint(weight_path, strict=True)
+        model.freeze()
+
+    elif method == 'dino':
+        model = torch.hub.load('facebookresearch/dino:main', 'dino_resnet50')
+    else:
+        raise ValueError('Unknown method: {}'.format(method))
+
+    return model
 
 
 if __name__ == "__main__":

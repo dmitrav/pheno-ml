@@ -134,7 +134,7 @@ def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, u
             results['f1'].append(float(best_f1_data['f1']))
 
     results_df = pandas.DataFrame(results)
-    results_df.to_csv(save_path + 'classification{}.csv'.format(uid))
+    results_df.to_csv(save_path + 'classification{}.csv'.format(uid), index=False)
 
 
 def run_supervised_classifier_training(loader_train, model, optimizer, criterion, device,
@@ -229,10 +229,10 @@ def plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/ph
     pyplot.figure(figsize=(12,3))
     pyplot.suptitle('Comparison of drug-control classification')
     for metric in ['accuracy', 'recall', 'specificity', 'f1']:
-        pyplot.subplot(1, 5, i)
+        pyplot.subplot(1, 4, i)
         seaborn.boxplot(x='method', y=metric, data=results)
         pyplot.title(metric)
-        pyplot.xticks(rotation=45)
+        pyplot.xticks(rotation=45, fontsize=6)
         i += 1
     pyplot.tight_layout()
     pyplot.show()
@@ -331,7 +331,39 @@ def get_f_transform(method_name, device=torch.device('cpu')):
 
     elif method_name == 'swav_resnet50':
         # upload  resnet50, pretrained with SwAV
-        model = pretrained.get_self_supervised_resnet()
+        model = pretrained.get_self_supervised_resnet(method='swav')
+        transform = lambda x: model(
+            torch.unsqueeze(  # add batch dimension
+                ToTensor()(  # convert PIL to tensor
+                    Grayscale(num_output_channels=3)(  # apply grayscale, keeping 3 channels
+                        ToPILImage()(  # conver to PIL to apply grayscale
+                            Resize(size=224)(  # and resnet is trained with 224
+                                Resize(size=128)(x)  # images are 256, but all models are trained with 128
+                            )
+                        )
+                    )
+                ), 0)
+        ).reshape(-1).detach().cpu().numpy()
+
+    elif method_name == 'dino_resnet50':
+        # upload  resnet50, pretrained with DINO
+        model = pretrained.get_self_supervised_resnet(method='dino')
+        transform = lambda x: model(
+            torch.unsqueeze(  # add batch dimension
+                ToTensor()(  # convert PIL to tensor
+                    Grayscale(num_output_channels=3)(  # apply grayscale, keeping 3 channels
+                        ToPILImage()(  # conver to PIL to apply grayscale
+                            Resize(size=224)(  # and resnet is trained with 224
+                                Resize(size=128)(x)  # images are 256, but all models are trained with 128
+                            )
+                        )
+                    )
+                ), 0)
+        ).reshape(-1).detach().cpu().numpy()
+
+    elif method_name == 'dino_vit':
+        # upload  resnet50, pretrained with DINO
+        model = pretrained.get_self_supervised_vit()
         transform = lambda x: model(
             torch.unsqueeze(  # add batch dimension
                 ToTensor()(  # convert PIL to tensor
@@ -554,7 +586,7 @@ def plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
         pyplot.subplot(1, 4, i)
         seaborn.barplot(x='method', y=metric, data=results)
         pyplot.title(metric)
-        pyplot.xticks(rotation=45)
+        pyplot.xticks(rotation=45, fontsize=6)
         i += 1
     pyplot.tight_layout()
     pyplot.show()
@@ -584,7 +616,7 @@ def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
         pyplot.subplot(1, 4, i)
         seaborn.boxplot(x='method', y=metric, data=results)
         pyplot.title(metric)
-        pyplot.xticks(rotation=45)
+        pyplot.xticks(rotation=45, fontsize=6)
         i += 1
     pyplot.tight_layout()
     pyplot.show()
@@ -595,14 +627,15 @@ if __name__ == "__main__":
     # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
     path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
     # models = ['resnet50', 'swav_resnet50', 'trained_ae']
-    models = os.listdir('/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/')
+    models = ['dino_resnet50', 'dino_vit']
+    # models = os.listdir('/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/')
 
     device = torch.device('cpu')
 
     evaluate = True
     plot = False
 
-    uid = '_first_half'
+    uid = '_dino'
 
     if evaluate:
         # distance-based analysis
@@ -613,6 +646,6 @@ if __name__ == "__main__":
         train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
 
     if plot:
-        plot_similarity_results()
-        plot_clustering_results()
-        plot_classification_results()
+        plot_similarity_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_first_half.csv')
+        plot_clustering_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_first_half.csv')
+        plot_classification_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_first_half.csv')
