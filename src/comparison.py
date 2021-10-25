@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from torchmetrics import Accuracy, Recall, Precision, Specificity
 
 from src.autoencoder import get_trained_autoencoder
-from src.self_supervised import DeepClassifier
+from src.self_supervised import Autoencoder
 from src.constants import cell_lines, drugs
 from src import pretrained
 
@@ -84,10 +84,14 @@ def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, u
         train_dataset = TensorDataset(torch.Tensor(x_train), torch.LongTensor(y_train))
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-        if model_name == 'trained_ae':
+        if model_name == 'resnet50' or model_name == 'swav_resnet50':
+            model = Classifier().to(device)
+        elif model_name == 'trained_ae':
+            # old tensorflow model
             model = Classifier(in_dim=4096).to(device)
         else:
-            model = Classifier().to(device)
+            # new pytorch models
+            model = Classifier(in_dim=4624).to(device)
 
         lrs = [0.1, 0.05, 0.01]
         ms = [0.9, 0.8, 0.7]
@@ -109,7 +113,7 @@ def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, u
 
     # collect and save results
     results = {
-        'models': [], 'lrs': [], 'ms': [], 'wds': [],
+        'method': [], 'lrs': [], 'ms': [], 'wds': [],
         'epoch': [], 'accuracy': [], 'recall': [], 'precision': [], 'specificity': [], 'f1': []
     }
 
@@ -118,6 +122,7 @@ def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, u
             data = pandas.read_csv(save_path + '{}/{}/history.csv'.format(model_name, param_set))
             best_f1_data = data.loc[data['f1'] == data['f1'].max(), :]
 
+            results['method'].append(model_name)
             results['lrs'].append(float(param_set.split(',')[0].split('=')[1]))
             results['ms'].append(float(param_set.split(',')[1].split('=')[1]))
             results['wds'].append(float(param_set.split(',')[2].split('=')[1]))
@@ -127,17 +132,9 @@ def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, u
             results['precision'].append(float(best_f1_data['precision']))
             results['specificity'].append(float(best_f1_data['specificity']))
             results['f1'].append(float(best_f1_data['f1']))
-            if model_name == 'resnet50':
-                results['models'].append('ResNet-50')
-            elif model_name == 'swav_resnet50':
-                results['models'].append('SwAV')
-            elif model_name == 'trained_ae':
-                results['models'].append('AE')
-            else:
-                results['models'].append('BYOL*')
 
     results_df = pandas.DataFrame(results)
-    results_df.to_csv(save_path + 'classification_{}.csv'.format(uid))
+    results_df.to_csv(save_path + 'classification{}.csv'.format(uid))
 
 
 def run_supervised_classifier_training(loader_train, model, optimizer, criterion, device,
@@ -223,9 +220,9 @@ def plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/ph
 
     results = pandas.read_csv(path_to_results)
 
-    results.loc[results['models'] == 'ResNet-50', 'models'] = 'ResNet-50\n(pretrained)'
-    results.loc[results['models'] == 'SwAV', 'models'] = 'SwAV\n(pretrained)'
-    results.loc[results['models'] == 'trained_ae', 'models'] = 'ConvAE\n(trained)'
+    results.loc[results['method'] == 'resnet50', 'models'] = 'ResNet-50\n(pretrained)'
+    results.loc[results['method'] == 'swav_resnet50', 'models'] = 'SwAV\n(pretrained)'
+    results.loc[results['method'] == 'trained_ae', 'models'] = 'ConvAE\n(trained)'
 
     i = 1
     seaborn.set()
@@ -233,7 +230,7 @@ def plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/ph
     pyplot.suptitle('Comparison of drug-control classification')
     for metric in ['accuracy', 'recall', 'specificity', 'f1']:
         pyplot.subplot(1, 5, i)
-        seaborn.boxplot(x='models', y=metric, data=results)
+        seaborn.boxplot(x='method', y=metric, data=results)
         pyplot.title(metric)
         pyplot.xticks(rotation=45)
         i += 1
@@ -355,26 +352,16 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         transform = lambda x: model(numpy.expand_dims(Resize(size=128)(x / 255.).numpy(), axis=-1))[0].numpy().reshape(-1)
 
     else:
-        # didn't work quite well with my self-supervised models...
-        path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/byol/{}/'.format(method_name)
+        # upload newly trained ConvAE models
+        path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/{}/'.format(method_name)
         # path_to_model = 'D:\ETH\projects\pheno-ml\\res\\byol\\{}\\'.format(method_name)
-        model = DeepClassifier().to(device)
+        model = Autoencoder().to(device)
         # load a trained deep classifier to use it in the transform
-        model.load_state_dict(torch.load(path_to_model + 'best.torch', map_location=device))
+        model.load_state_dict(torch.load(path_to_model + 'autoencoder_at_5.torch', map_location=device))
         model.eval()
-        # truncate to the layer with learned representations
-        model = Sequential(*list(model.model.children())[:-4])
+
         # create a transform function with weakly supervised classifier
-        transform = lambda x: model(
-            torch.unsqueeze(  # add batch dimension
-                ToTensor()(  # convert PIL to tensor
-                    Grayscale(num_output_channels=1)(  # apply grayscale, keeping 1 channel
-                        ToPILImage()(  # conver to PIL to apply grayscale
-                            Resize(size=128)(x)  # images are 256, but all models are trained with 128
-                        )
-                    )
-                ), 0)
-        ).reshape(-1).detach().cpu().numpy()
+        transform = lambda x: model.encoder(torch.unsqueeze(Resize(size=128)(x / 255.), 0)).reshape(-1).detach().cpu().numpy()
 
     return transform
 
@@ -493,7 +480,7 @@ def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_imag
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
-    results = {'group_by': [], 'method': [], 'min_cluster_size': [],
+    results = {'cell_line': [], 'method': [], 'min_cluster_size': [],
                'n_clusters': [], 'noise': [], 'silhouette': [], 'calinski_harabasz': [], 'davies_bouldin': []}
 
     for method_name in methods:
@@ -533,9 +520,8 @@ def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_imag
                     # single cluster
                     silhouette, calinski_harabasz, davies_bouldin = -1, -1, -1
 
-                results['group_by'].append(cell_line)
+                results['cell_line'].append(cell_line)
                 results['method'].append(method_name)
-
                 results['min_cluster_size'].append(min_cluster_size)
                 results['n_clusters'].append(n_clusters)
                 results['noise'].append(noise)
@@ -555,20 +541,22 @@ def plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
     results.loc[results['method'] == 'swav_resnet50', 'method'] = 'SwAV\n(pretrained)'
     results.loc[results['method'] == 'trained_ae', 'method'] = 'ConvAE\n(trained)'
 
-    methods = list(results['method'].unique())
+    # normalize distances
+    for method in list(results['method'].unique()):
+        for metric in ['euclidean', 'cosine', 'correlation', 'braycurtis']:
+            results.loc[results['method'] == method, metric] /= results.loc[results['method'] == method, metric].max()
 
     seaborn.set()
-    for method in methods:
-        i = 1
-        pyplot.figure(figsize=(10, 3))
-        pyplot.suptitle('Comparison of drug similarity: {}'.format(method))
-        for metric in ['euclidean', 'cosine', 'correlation', 'braycurtis']:
-            pyplot.subplot(1, 4, i)
-            seaborn.barplot(x='comparison', y=metric, data=results)
-            pyplot.title(metric)
-            pyplot.xticks(rotation=45)
-            i += 1
-        pyplot.tight_layout()
+    i = 1
+    pyplot.figure(figsize=(10, 3))
+    pyplot.suptitle('Comparison of similarity of drugs')
+    for metric in ['euclidean', 'cosine', 'correlation', 'braycurtis']:
+        pyplot.subplot(1, 4, i)
+        seaborn.barplot(x='method', y=metric, data=results)
+        pyplot.title(metric)
+        pyplot.xticks(rotation=45)
+        i += 1
+    pyplot.tight_layout()
     pyplot.show()
 
 
@@ -606,25 +594,25 @@ if __name__ == "__main__":
 
     # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
     path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
-    models = ['resnet50', 'swav_resnet50', 'trained_ae']
+    # models = ['resnet50', 'swav_resnet50', 'trained_ae']
+    models = os.listdir('/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/')
 
     device = torch.device('cpu')
 
     evaluate = True
     plot = False
 
-    uid = ''
+    uid = '_first_half'
 
     if evaluate:
         # distance-based analysis
         compare_similarity(path_to_data, models, uid=uid, device=device)
-
-        # # clustering analysis within cell lines
-        # collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines{}'.format(uid), device=device)
-        # # classification of drugs vs controls
-        # train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
+        # clustering analysis within cell lines
+        collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines{}'.format(uid), device=device)
+        # classification of drugs vs controls
+        train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
 
     if plot:
-        # plot_similarity_results()
+        plot_similarity_results()
         plot_clustering_results()
         plot_classification_results()
