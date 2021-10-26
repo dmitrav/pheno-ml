@@ -627,7 +627,7 @@ if __name__ == "__main__":
     # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
     path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
     # models = ['resnet50', 'swav_resnet50', 'trained_ae']
-    models = ['dino_resnet50', 'dino_vit']
+    models = ['dino_resnet50']
     # models = os.listdir('/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/')
 
     device = torch.device('cpu')
@@ -635,15 +635,16 @@ if __name__ == "__main__":
     evaluate = True
     plot = False
 
-    uid = '_dino'
+    uid = '_dino_resnet50'
 
     if evaluate:
-        # distance-based analysis
-        compare_similarity(path_to_data, models, uid=uid, device=device)
-        # clustering analysis within cell lines
-        collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines{}'.format(uid), device=device)
+        # # distance-based analysis
+        # compare_similarity(path_to_data, models, uid=uid, device=device)
+
         # classification of drugs vs controls
         train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
+        # clustering analysis within cell lines
+        collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines{}'.format(uid), device=device)
 
     if plot:
         plot_similarity_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_first_half.csv')
