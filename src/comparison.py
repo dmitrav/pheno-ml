@@ -84,7 +84,7 @@ def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, u
         train_dataset = TensorDataset(torch.Tensor(x_train), torch.LongTensor(y_train))
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-        if model_name == 'resnet50' or model_name == 'swav_resnet50':
+        if model_name == 'resnet50' or model_name == 'swav_resnet50' or model_name == 'dino_resnet50':
             model = Classifier().to(device)
         elif model_name == 'trained_ae':
             # old tensorflow model
