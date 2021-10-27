@@ -42,10 +42,9 @@ class Classifier(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, uid='', device=torch.device('cuda'), batch_size=256):
+def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, epochs, models, uid='', device=torch.device('cuda'), batch_size=256):
 
-    path_to_images = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
-    save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/'
+    save_path = 'D:\ETH\projects\pheno-ml\\res\\comparison\\classification\\'
 
     for model_name in models:
 
@@ -70,8 +69,8 @@ def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, u
                 *[plate + '_' + well for well in pbs_wells]
             ]
 
-            drug_codes, _ = get_image_encodings_of_cell_line(path_to_images, cell_line, all_drugs_wells, transform=transform, last_n=15)
-            control_codes, _ = get_image_encodings_of_cell_line(path_to_images, cell_line, all_controls_wells, transform=transform, last_n=23)
+            drug_codes, _ = get_image_encodings_of_cell_line(path_to_images, cell_line, all_drugs_wells, device=device, transform=transform, last_n=15)
+            control_codes, _ = get_image_encodings_of_cell_line(path_to_images, cell_line, all_controls_wells, device=device, transform=transform, last_n=23)
 
             all_drugs_codes.extend(drug_codes)
             all_controls_codes.extend(control_codes)
@@ -86,6 +85,8 @@ def train_classifiers_with_pretrained_encoder_and_save_results(epochs, models, u
 
         if model_name == 'resnet50' or model_name == 'swav_resnet50' or model_name == 'dino_resnet50':
             model = Classifier().to(device)
+        elif model_name == 'dino_vit':
+            model = Classifier(in_dim=768).to(device)
         elif model_name == 'trained_ae':
             # old tensorflow model
             model = Classifier(in_dim=4096).to(device)
@@ -238,7 +239,7 @@ def plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/ph
     pyplot.show()
 
 
-def get_image_encodings_from_path(path, common_image_ids, transform, n=None, randomize=True):
+def get_image_encodings_from_path(path, common_image_ids, transform, device=torch.device('cpu'), n=None, randomize=True):
 
     # get filenames to retrieve image ids
     if isinstance(common_image_ids, str):
@@ -269,13 +270,13 @@ def get_image_encodings_from_path(path, common_image_ids, transform, n=None, ran
     # print('processing images from {}'.format(path))
     for file in filenames:
         img = read_image(path + file)
-        img_encoded = transform(img)
+        img_encoded = transform(img.to(device))
         encodings.append(img_encoded)
 
     return encodings, image_ids
 
 
-def get_image_encodings_of_cell_line(path, cell_line, drugs_wells, transform, last_n=10):
+def get_image_encodings_of_cell_line(path, cell_line, drugs_wells, transform, device=torch.device('cuda'), last_n=10):
     """ Gets the last n time points of each drug. For a big dataset this should work faster. """
 
     filenames = []
@@ -305,7 +306,7 @@ def get_image_encodings_of_cell_line(path, cell_line, drugs_wells, transform, la
     encodings = []
     for file in filenames:
         img = read_image(path + file)
-        img_encoded = transform(img)
+        img_encoded = transform(img.to(device))
         encodings.append(img_encoded)
 
     return encodings, image_ids
@@ -385,8 +386,8 @@ def get_f_transform(method_name, device=torch.device('cpu')):
 
     else:
         # upload newly trained ConvAE models
-        path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/{}/'.format(method_name)
-        # path_to_model = 'D:\ETH\projects\pheno-ml\\res\\byol\\{}\\'.format(method_name)
+        # path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/{}/'.format(method_name)
+        path_to_model = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\{}\\'.format(method_name)
         model = Autoencoder().to(device)
         # load a trained deep classifier to use it in the transform
         model.load_state_dict(torch.load(path_to_model + 'autoencoder_at_5.torch', map_location=device))
@@ -400,8 +401,8 @@ def get_f_transform(method_name, device=torch.device('cpu')):
 
 def get_wells_of_drug_for_cell_line(cell_line, drug, plate=''):
 
-    meta_path = '/Users/andreidm/ETH/projects/pheno-ml/data/metadata/'
-    # meta_path = 'D:\ETH\projects\pheno-ml\data\metadata\\'
+    # meta_path = '/Users/andreidm/ETH/projects/pheno-ml/data/metadata/'
+    meta_path = 'D:\ETH\projects\pheno-ml\data\metadata\\'
     cell_plate_paths = [meta_path + file for file in os.listdir(meta_path) if cell_line in file and plate in file]
 
     wells = []
@@ -469,8 +470,8 @@ def get_common_control_wells():
 
 def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda')):
 
-    save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/'
-    # save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\similarity\\'
+    # save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/'
+    save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\similarity\\'
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
@@ -487,7 +488,7 @@ def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda'
 
                 drug_codes = []
                 for well in drug_wells:
-                    encodings, _ = get_image_encodings_from_path(path_to_data, [well, cell_line], transform, n=5, randomize=False)
+                    encodings, _ = get_image_encodings_from_path(path_to_data, [well, cell_line], transform, device=device, n=5, randomize=False)
                     drug_codes.append(encodings)
 
                 # compare Methotrexate with Pemetrexed
@@ -507,8 +508,8 @@ def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda'
 def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_images, methods, range_with_step, uid='', device=torch.device('cuda')):
     """ Cluster the dataset over multiple parameters, evaluate results and save results as a dataframe. """
 
-    save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/'
-    # save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\clustering\\'
+    # save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/'
+    save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\clustering\\'
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
@@ -624,25 +625,24 @@ def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
 
 if __name__ == "__main__":
 
-    # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
-    path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
+    path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
+    # path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
     # models = ['resnet50', 'swav_resnet50', 'trained_ae']
-    models = ['dino_resnet50']
-    # models = os.listdir('/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/')
+    models = ['dino_vit']
+    # models = os.listdir('D:\ETH\projects\pheno-ml\\pretrained\\convae\\')
 
-    device = torch.device('cpu')
+    device = torch.device('cuda')
 
     evaluate = True
     plot = False
 
-    uid = '_dino_resnet50'
+    uid = '_dino_vit'
 
     if evaluate:
-        # # distance-based analysis
-        # compare_similarity(path_to_data, models, uid=uid, device=device)
-
+        # distance-based analysis
+        compare_similarity(path_to_data, models, uid=uid, device=device)
         # classification of drugs vs controls
-        train_classifiers_with_pretrained_encoder_and_save_results(25, models, uid=uid, batch_size=1024, device=device)
+        train_classifiers_with_pretrained_encoder_and_save_results(path_to_data, 25, models, uid=uid, batch_size=1024, device=device)
         # clustering analysis within cell lines
         collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines{}'.format(uid), device=device)
 
