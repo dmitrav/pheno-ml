@@ -11,6 +11,7 @@ from matplotlib import pyplot
 from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
 from torchmetrics import Accuracy, Recall, Precision, Specificity
+from tensorflow.keras.models import Model
 
 from src.autoencoder import get_trained_autoencoder
 from src.self_supervised import Autoencoder
@@ -381,7 +382,8 @@ def get_f_transform(method_name, device=torch.device('cpu')):
     elif method_name == 'trained_ae':
         # upload trained autoencoder
         # (attention: tensorflow)
-        model = get_trained_autoencoder()
+        autoencoder = get_trained_autoencoder()
+        model = Model(autoencoder.input, autoencoder.layers[-2].output)
         transform = lambda x: model(numpy.expand_dims(Resize(size=128)(x / 255.).numpy(), axis=-1))[0].numpy().reshape(-1)
 
     else:

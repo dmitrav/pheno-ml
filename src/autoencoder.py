@@ -285,8 +285,7 @@ def get_trained_autoencoder():
     autoencoder.summary()
     autoencoder.load_weights(weights)
 
-    encoder = Model(autoencoder.input, autoencoder.layers[-2].output)
-    return encoder
+    return autoencoder
 
 
 def load_model_and_plot_results(save_to):
