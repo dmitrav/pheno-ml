@@ -222,9 +222,12 @@ def plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/ph
 
     results = pandas.read_csv(path_to_results)
 
-    results.loc[results['method'] == 'resnet50', 'models'] = 'ResNet-50\n(pretrained)'
-    results.loc[results['method'] == 'swav_resnet50', 'models'] = 'SwAV\n(pretrained)'
-    results.loc[results['method'] == 'trained_ae', 'models'] = 'ConvAE\n(trained)'
+    results.loc[results['method'] == 'resnet50', 'method'] = 'RN-50\n(pretrained)'
+    results.loc[results['method'] == 'swav_resnet50', 'method'] = 'RN-50+SwAV\n(pretrained)'
+    results.loc[results['method'] == 'dino_resnet50', 'method'] = 'RN-50+DINO\n(pretrained)'
+    results.loc[results['method'] == 'dino_vit', 'method'] = 'ViT+DINO\n(pretrained)'
+    results.loc[results['method'] == 'trained_ae_v1', 'method'] = 'ConvAE v1\n(trained)'
+    results.loc[results['method'] == 'trained_ae_v2', 'method'] = 'ConvAE v2\n(trained)'
 
     i = 1
     seaborn.set()
@@ -379,15 +382,14 @@ def get_f_transform(method_name, device=torch.device('cpu')):
                 ), 0)
         ).reshape(-1).detach().cpu().numpy()
 
-    elif method_name == 'trained_ae':
-        # upload trained autoencoder
-        # (attention: tensorflow)
+    elif method_name == 'trained_ae_v1':
+        # upload trained autoencoder v1 (tensorflow)
         autoencoder = get_trained_autoencoder()
         model = Model(autoencoder.input, autoencoder.layers[-2].output)
         transform = lambda x: model(numpy.expand_dims(Resize(size=128)(x / 255.).numpy(), axis=-1))[0].numpy().reshape(-1)
 
-    else:
-        # upload newly trained ConvAE models
+    elif method_name == 'trained_ae_v2':
+        # TODO: specify path to the 1_1_3_1_0.5_0.5_1_0.75_0.5
         # path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/{}/'.format(method_name)
         path_to_model = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\{}\\'.format(method_name)
         model = Autoencoder().to(device)
@@ -397,6 +399,9 @@ def get_f_transform(method_name, device=torch.device('cpu')):
 
         # create a transform function with weakly supervised classifier
         transform = lambda x: model.encoder(torch.unsqueeze(Resize(size=128)(x / 255.), 0)).reshape(-1).detach().cpu().numpy()
+
+    else:
+        raise ValueError('Method not recognized')
 
     return transform
 
@@ -572,14 +577,18 @@ def plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
 
     results = pandas.read_csv(path_to_results)
 
-    results.loc[results['method'] == 'resnet50', 'method'] = 'ResNet-50\n(pretrained)'
-    results.loc[results['method'] == 'swav_resnet50', 'method'] = 'SwAV\n(pretrained)'
-    results.loc[results['method'] == 'trained_ae', 'method'] = 'ConvAE\n(trained)'
+    results.loc[results['method'] == 'resnet50', 'method'] = 'RN-50\n(pretrained)'
+    results.loc[results['method'] == 'swav_resnet50', 'method'] = 'RN-50+SwAV\n(pretrained)'
+    results.loc[results['method'] == 'dino_resnet50', 'method'] = 'RN-50+DINO\n(pretrained)'
+    results.loc[results['method'] == 'dino_vit', 'method'] = 'ViT+DINO\n(pretrained)'
+    results.loc[results['method'] == 'trained_ae_v1', 'method'] = 'ConvAE v1\n(trained)'
+    results.loc[results['method'] == 'trained_ae_v2', 'method'] = 'ConvAE v2\n(trained)'
 
     # normalize distances
     for method in list(results['method'].unique()):
         for metric in ['euclidean', 'cosine', 'correlation', 'braycurtis']:
             results.loc[results['method'] == method, metric] /= results.loc[results['method'] == method, metric].max()
+            results.loc[results['method'] == method, metric] = 1 / results.loc[results['method'] == method, metric]
 
     seaborn.set()
     i = 1
@@ -599,14 +608,17 @@ def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
 
     results = pandas.read_csv(path_to_results)
 
-    results.loc[results['method'] == 'resnet50', 'method'] = 'ResNet-50\n(pretrained)'
-    results.loc[results['method'] == 'swav_resnet50', 'method'] = 'SwAV\n(pretrained)'
-    results.loc[results['method'] == 'trained_ae', 'method'] = 'ConvAE\n(trained)'
+    results.loc[results['method'] == 'resnet50', 'method'] = 'RN-50\n(pretrained)'
+    results.loc[results['method'] == 'swav_resnet50', 'method'] = 'RN-50+SwAV\n(pretrained)'
+    results.loc[results['method'] == 'dino_resnet50', 'method'] = 'RN-50+DINO\n(pretrained)'
+    results.loc[results['method'] == 'dino_vit', 'method'] = 'ViT+DINO\n(pretrained)'
+    results.loc[results['method'] == 'trained_ae_v1', 'method'] = 'ConvAE v1\n(trained)'
+    results.loc[results['method'] == 'trained_ae_v2', 'method'] = 'ConvAE v2\n(trained)'
 
-    # filter out failed clustering attempts for better visualization
-    results = results.drop(results.loc[results['silhouette'] == -1, :].index)
-    # filter out too high calinski-harabasz values for better visualization
-    results = results.drop(results.loc[results['calinski_harabasz'] > 20000, :].index)
+    # # filter out failed clustering attempts for better visualization
+    # results = results.drop(results.loc[results['silhouette'] == -1, :].index)
+    # # filter out too high calinski-harabasz values for better visualization
+    # results = results.drop(results.loc[results['calinski_harabasz'] > 20000, :].index)
 
     results['not_noise'] = 100 - results['noise']
     results['davies_bouldin-1'] = 1 / results['davies_bouldin']
@@ -629,16 +641,14 @@ if __name__ == "__main__":
 
     path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
     # path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
-    # models = ['resnet50', 'swav_resnet50', 'trained_ae']
-    models = ['dino_vit']
-    # models = os.listdir('D:\ETH\projects\pheno-ml\\pretrained\\convae\\')
+    models = []
 
     device = torch.device('cuda')
 
-    evaluate = True
-    plot = False
+    evaluate = False
+    plot = True
 
-    uid = '_dino_vit'
+    uid = ''
 
     if evaluate:
         # distance-based analysis
@@ -649,6 +659,6 @@ if __name__ == "__main__":
         collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines{}'.format(uid), device=device)
 
     if plot:
-        plot_similarity_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_first_half.csv')
-        plot_clustering_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_first_half.csv')
-        plot_classification_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_first_half.csv')
+        plot_similarity_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity.csv')
+        plot_clustering_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering.csv')
+        plot_classification_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification.csv')
