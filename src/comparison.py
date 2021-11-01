@@ -651,7 +651,7 @@ if __name__ == "__main__":
     evaluate = True
     plot = False
 
-    uid = '_   pretrained_resnet'
+    uid = '_pretrained_resnet'
 
     if evaluate:
         # # distance-based analysis
