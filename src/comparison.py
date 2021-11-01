@@ -45,7 +45,8 @@ class Classifier(nn.Module):
 
 def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, epochs, models, uid='', device=torch.device('cuda'), batch_size=256):
 
-    save_path = 'D:\ETH\projects\pheno-ml\\res\\comparison\\classification\\'
+    # save_path = 'D:\ETH\projects\pheno-ml\\res\\comparison\\classification\\'
+    save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/'
 
     for model_name in models:
 
@@ -84,17 +85,6 @@ def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, e
         train_dataset = TensorDataset(torch.Tensor(x_train), torch.LongTensor(y_train))
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-        if model_name == 'resnet50' or model_name == 'swav_resnet50' or model_name == 'dino_resnet50':
-            model = Classifier().to(device)
-        elif model_name == 'dino_vit':
-            model = Classifier(in_dim=768).to(device)
-        elif model_name == 'trained_ae':
-            # old tensorflow model
-            model = Classifier(in_dim=4096).to(device)
-        else:
-            # new pytorch models
-            model = Classifier(in_dim=4624).to(device)
-
         lrs = [0.1, 0.05, 0.01]
         ms = [0.9, 0.8, 0.7]
         wds = [1e-3, 1e-4, 1e-5]
@@ -102,6 +92,19 @@ def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, e
         for lr in lrs:
             for m in ms:
                 for wd in wds:
+
+                    if model_name == 'resnet50' or model_name == 'swav_resnet50' or model_name == 'dino_resnet50':
+                        model = Classifier().to(device)
+                    elif model_name == 'dino_vit':
+                        model = Classifier(in_dim=768).to(device)
+                    elif model_name == 'trained_ae_v1':
+                        # old tensorflow model
+                        model = Classifier(in_dim=4096).to(device)
+                    elif model_name == 'trained_ae_v2':
+                        # new pytorch model: trained_ae_v2
+                        model = Classifier(in_dim=4624).to(device)
+                    else:
+                        raise ValueError('Unknown model')
 
                     params = 'lr={},m={},wd={}'.format(lr, m, wd)
                     if not os.path.exists(save_path + '{}/{}/'.format(model_name, params)):
@@ -390,8 +393,8 @@ def get_f_transform(method_name, device=torch.device('cpu')):
 
     elif method_name == 'trained_ae_v2':
         # TODO: specify path to the 1_1_3_1_0.5_0.5_1_0.75_0.5
-        # path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/{}/'.format(method_name)
-        path_to_model = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\{}\\'.format(method_name)
+        path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/{}/'.format(method_name)
+        # path_to_model = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\{}\\'.format(method_name)
         model = Autoencoder().to(device)
         # load a trained deep classifier to use it in the transform
         model.load_state_dict(torch.load(path_to_model + 'autoencoder_at_5.torch', map_location=device))
@@ -408,8 +411,8 @@ def get_f_transform(method_name, device=torch.device('cpu')):
 
 def get_wells_of_drug_for_cell_line(cell_line, drug, plate=''):
 
-    # meta_path = '/Users/andreidm/ETH/projects/pheno-ml/data/metadata/'
-    meta_path = 'D:\ETH\projects\pheno-ml\data\metadata\\'
+    meta_path = '/Users/andreidm/ETH/projects/pheno-ml/data/metadata/'
+    # meta_path = 'D:\ETH\projects\pheno-ml\data\metadata\\'
     cell_plate_paths = [meta_path + file for file in os.listdir(meta_path) if cell_line in file and plate in file]
 
     wells = []
@@ -639,24 +642,25 @@ def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
 
 if __name__ == "__main__":
 
-    path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
-    # path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
-    models = []
+    # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
+    path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
+    models = ['resnet50', 'swav_resnet50', 'dino_resnet50']
 
-    device = torch.device('cuda')
+    device = torch.device('cpu')
 
-    evaluate = False
-    plot = True
+    evaluate = True
+    plot = False
 
-    uid = ''
+    uid = '_   pretrained_resnet'
 
     if evaluate:
-        # distance-based analysis
-        compare_similarity(path_to_data, models, uid=uid, device=device)
+        # # distance-based analysis
+        # compare_similarity(path_to_data, models, uid=uid, device=device)
+        # # clustering analysis within cell lines
+        # collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines{}'.format(uid), device=device)
+
         # classification of drugs vs controls
         train_classifiers_with_pretrained_encoder_and_save_results(path_to_data, 25, models, uid=uid, batch_size=1024, device=device)
-        # clustering analysis within cell lines
-        collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines{}'.format(uid), device=device)
 
     if plot:
         plot_similarity_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity.csv')
