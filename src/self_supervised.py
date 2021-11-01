@@ -56,6 +56,54 @@ class Autoencoder(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
+class Autoencoder_v2(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 128, (3,3), stride=(1,1), padding=(1,1)),  # 128 x 128 x 128
+            nn.ReLU(True),
+            nn.MaxPool2d(2),  # 128 x 64 x 64
+
+            nn.Conv2d(128, 64, (3,3), stride=(1,1), padding=(1,1)),  # 64 x 64 x 64
+            nn.ReLU(True),
+            nn.MaxPool2d(2),  # 64 x 32 x 32
+
+            nn.Conv2d(64, 32, (3,3), stride=(1,1), padding=(1,1)),  # 32 x 32 x 32
+            nn.ReLU(True),
+
+            nn.Conv2d(32, 4, (3, 3), stride=(1,1), padding=(1,1)),  # 4 x 32 x 32
+        )
+
+        self.decoder = nn.Sequential(
+
+            nn.ConvTranspose2d(4, 32, (3, 3), stride=(1,1), padding=(1,1)),  # 32 x 32 x 32
+            nn.ReLU(True),
+            nn.Upsample(scale_factor=2),  # 32 x 64 x 64
+
+            nn.ConvTranspose2d(32, 64, (3,3), stride=(1,1), padding=(1,1)),  # 64 x 64 x 64
+            nn.ReLU(True),
+            nn.Upsample(scale_factor=2),  # 64 x 128 x 128
+
+            nn.ConvTranspose2d(64, 128, (3,3), stride=(1,1), padding=(1,1)),  # 128 x 128 x 128
+            nn.ReLU(True),
+
+            nn.ConvTranspose2d(128, 1, (3,3), stride=(1,1), padding=(1,1)),
+            nn.Sigmoid()
+        )
+        print(self)
+        print('number of parameters: {}\n'.format(self.count_parameters()))
+
+    def forward(self, features):
+        encoded = self.encoder(features)
+        decoded = self.decoder(encoded)
+        return decoded
+
+    def count_parameters(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
 class Backbone(nn.Module):
 
     def __init__(self):
@@ -91,98 +139,98 @@ def define_cropping_strategies(crop_size):
 
     strategies = []
 
-    # ONE CROP
-    size_crops = [crop_size]
-    nmb_crops = [1]
-    min_scale_crops = [1]
-    max_scale_crops = [1]
-    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
-    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
-    strategies.append(strategy)
-
-    # TWO CROPS
-    size_crops = [crop_size]
-    nmb_crops = [2]
-    min_scale_crops = [0.5]
-    max_scale_crops = [0.75]
-    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
-    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
-    strategies.append(strategy)
-
-    size_crops = [crop_size, crop_size]
-    nmb_crops = [1, 1]
-    min_scale_crops = [1, 0.5]
-    max_scale_crops = [1, 0.75]
-    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
-    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
-    strategies.append(strategy)
-
-    # THREE CROPS
-    size_crops = [crop_size]
-    nmb_crops = [3]
-    min_scale_crops = [0.5]
-    max_scale_crops = [0.75]
-    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
-    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
-    strategies.append(strategy)
-
-    size_crops = [crop_size, crop_size]
-    nmb_crops = [1, 2]
-    min_scale_crops = [1, 0.5]
-    max_scale_crops = [1, 0.75]
-    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
-    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
-    strategies.append(strategy)
-
-    size_crops = [crop_size, crop_size, crop_size]
-    nmb_crops = [1, 1, 1]
-    min_scale_crops = [1, 0.5, 0.5]
-    max_scale_crops = [1, 0.75, 0.5]
-    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
-    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
-    strategies.append(strategy)
-
-    # FOUR CROPS
-    size_crops = [crop_size]
-    nmb_crops = [4]
-    min_scale_crops = [0.5]
-    max_scale_crops = [0.75]
-    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
-    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
-    strategies.append(strategy)
-
-    size_crops = [crop_size, crop_size]
-    nmb_crops = [1, 3]
-    min_scale_crops = [1, 0.5]
-    max_scale_crops = [1, 0.75]
-    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
-    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
-    strategies.append(strategy)
-
-    size_crops = [crop_size, crop_size, crop_size]
-    nmb_crops = [1, 1, 2]
-    min_scale_crops = [1, 0.5, 0.5]
-    max_scale_crops = [1, 0.75, 0.5]
-    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
-    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
-    strategies.append(strategy)
-
-    # FIVE CROPS
-    size_crops = [crop_size, crop_size]
-    nmb_crops = [1, 4]
-    min_scale_crops = [1, 0.5]
-    max_scale_crops = [1, 0.75]
-    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
-    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
-    strategies.append(strategy)
-
-    size_crops = [crop_size, crop_size, crop_size]
-    nmb_crops = [1, 2, 2]
-    min_scale_crops = [1, 0.5, 0.5]
-    max_scale_crops = [1, 0.75, 0.5]
-    sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
-    strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
-    strategies.append(strategy)
+    # # ONE CROP
+    # size_crops = [crop_size]
+    # nmb_crops = [1]
+    # min_scale_crops = [1]
+    # max_scale_crops = [1]
+    # sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    # strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    # strategies.append(strategy)
+    #
+    # # TWO CROPS
+    # size_crops = [crop_size]
+    # nmb_crops = [2]
+    # min_scale_crops = [0.5]
+    # max_scale_crops = [0.75]
+    # sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    # strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    # strategies.append(strategy)
+    #
+    # size_crops = [crop_size, crop_size]
+    # nmb_crops = [1, 1]
+    # min_scale_crops = [1, 0.5]
+    # max_scale_crops = [1, 0.75]
+    # sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    # strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    # strategies.append(strategy)
+    #
+    # # THREE CROPS
+    # size_crops = [crop_size]
+    # nmb_crops = [3]
+    # min_scale_crops = [0.5]
+    # max_scale_crops = [0.75]
+    # sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    # strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    # strategies.append(strategy)
+    #
+    # size_crops = [crop_size, crop_size]
+    # nmb_crops = [1, 2]
+    # min_scale_crops = [1, 0.5]
+    # max_scale_crops = [1, 0.75]
+    # sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    # strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    # strategies.append(strategy)
+    #
+    # size_crops = [crop_size, crop_size, crop_size]
+    # nmb_crops = [1, 1, 1]
+    # min_scale_crops = [1, 0.5, 0.5]
+    # max_scale_crops = [1, 0.75, 0.5]
+    # sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    # strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    # strategies.append(strategy)
+    #
+    # # FOUR CROPS
+    # size_crops = [crop_size]
+    # nmb_crops = [4]
+    # min_scale_crops = [0.5]
+    # max_scale_crops = [0.75]
+    # sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    # strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    # strategies.append(strategy)
+    #
+    # size_crops = [crop_size, crop_size]
+    # nmb_crops = [1, 3]
+    # min_scale_crops = [1, 0.5]
+    # max_scale_crops = [1, 0.75]
+    # sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    # strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    # strategies.append(strategy)
+    #
+    # size_crops = [crop_size, crop_size, crop_size]
+    # nmb_crops = [1, 1, 2]
+    # min_scale_crops = [1, 0.5, 0.5]
+    # max_scale_crops = [1, 0.75, 0.5]
+    # sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    # strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    # strategies.append(strategy)
+    #
+    # # FIVE CROPS
+    # size_crops = [crop_size, crop_size]
+    # nmb_crops = [1, 4]
+    # min_scale_crops = [1, 0.5]
+    # max_scale_crops = [1, 0.75]
+    # sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    # strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    # strategies.append(strategy)
+    #
+    # size_crops = [crop_size, crop_size, crop_size]
+    # nmb_crops = [1, 2, 2]
+    # min_scale_crops = [1, 0.5, 0.5]
+    # max_scale_crops = [1, 0.75, 0.5]
+    # sid = "_".join([str(x) for x in [*nmb_crops, *min_scale_crops, *max_scale_crops]])
+    # strategy = (sid, size_crops, nmb_crops, min_scale_crops, max_scale_crops)
+    # strategies.append(strategy)
 
     size_crops = [crop_size, crop_size, crop_size]
     nmb_crops = [1, 1, 3]
@@ -284,7 +332,8 @@ def train_autoencoder(epochs, data_loader_train, trained_ae=None, device=torch.d
     if trained_ae is not None:
         model = trained_ae
     else:
-        model = Autoencoder().to(device)
+        # model = Autoencoder().to(device)
+        model = Autoencoder_v2().to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     criterion = nn.BCELoss()
@@ -386,5 +435,5 @@ if __name__ == "__main__":
         train_multi_crop = MultiCropDataset(path_to_data, *cropping_strategy, no_aug=False, size_dataset=train_size)
         print('training data:', train_multi_crop.__len__())
         data_loader_train = DataLoader(train_multi_crop, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, drop_last=True)
-        train_autoencoder(epochs, data_loader_train, device=device, run_id=cropping_id)
+        train_autoencoder(epochs, data_loader_train, device=device, run_id=cropping_id + '_v2')
 
