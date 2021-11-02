@@ -14,7 +14,7 @@ from torchmetrics import Accuracy, Recall, Precision, Specificity
 from tensorflow.keras.models import Model
 
 from src.autoencoder import get_trained_autoencoder
-from src.self_supervised import Autoencoder
+from src.self_supervised import Autoencoder, Autoencoder_v2
 from src.constants import cell_lines, drugs
 from src import pretrained
 
@@ -100,11 +100,15 @@ def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, e
                     elif model_name == 'trained_ae_v1':
                         # old tensorflow model
                         model = Classifier(in_dim=4096).to(device)
-                    elif model_name == 'trained_ae_v2':
-                        # new pytorch model: trained_ae_v2
-                        model = Classifier(in_dim=4624).to(device)
+                    # elif model_name == 'trained_ae_v2':
                     else:
-                        raise ValueError('Unknown model')
+                        # new pytorch model: trained_ae_v2
+                        if model_name.endswith('_v2'):
+                            model = Classifier(in_dim=4096).to(device)
+                        else:
+                            model = Classifier(in_dim=4624).to(device)
+                    # else:
+                    #     raise ValueError('Unknown model')
 
                     params = 'lr={},m={},wd={}'.format(lr, m, wd)
                     if not os.path.exists(save_path + '{}/{}/'.format(model_name, params)):
@@ -391,11 +395,14 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         model = Model(autoencoder.input, autoencoder.layers[-2].output)
         transform = lambda x: model(numpy.expand_dims(Resize(size=128)(x / 255.).numpy(), axis=-1))[0].numpy().reshape(-1)
 
-    elif method_name == 'trained_ae_v2':
-        # TODO: specify path to the 1_1_3_1_0.5_0.5_1_0.75_0.5
+    # elif method_name == 'trained_ae_v2':
+    else:
         path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/{}/'.format(method_name)
         # path_to_model = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\{}\\'.format(method_name)
-        model = Autoencoder().to(device)
+        if method_name.endswith('_v2'):
+            model = Autoencoder_v2().to(device)
+        else:
+            model = Autoencoder().to(device)
         # load a trained deep classifier to use it in the transform
         model.load_state_dict(torch.load(path_to_model + 'autoencoder_at_5.torch', map_location=device))
         model.eval()
@@ -403,8 +410,8 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         # create a transform function with weakly supervised classifier
         transform = lambda x: model.encoder(torch.unsqueeze(Resize(size=128)(x / 255.), 0)).reshape(-1).detach().cpu().numpy()
 
-    else:
-        raise ValueError('Method not recognized')
+    # else:
+    #     raise ValueError('Method not recognized')
 
     return transform
 
@@ -644,14 +651,16 @@ if __name__ == "__main__":
 
     # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
     path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
-    models = ['resnet50', 'swav_resnet50', 'dino_resnet50']
+    # models = ['resnet50', 'swav_resnet50', 'dino_resnet50']
+    models = ['1_1_3_1_0.5_0.5_1_0.75_0.5_v2', '1_1_2_1_0.5_0.5_1_0.75_0.5', '1_1_3_1_0.5_0.5_1_0.75_0.5',
+              '1_2_2_1_0.5_0.5_1_0.75_0.5', '1_3_1_0.5_1_0.75', '1_4_1_0.5_1_0.75', '4_0.5_0.75']
 
     device = torch.device('cpu')
 
     evaluate = True
     plot = False
 
-    uid = '_pretrained_resnet'
+    uid = '_second_half'
 
     if evaluate:
         # # distance-based analysis

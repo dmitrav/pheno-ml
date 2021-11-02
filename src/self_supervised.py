@@ -25,7 +25,7 @@ class Autoencoder(nn.Module):
             nn.Conv2d(64, 32, (3,3), stride=(1,1), padding=(1,1)),  # 32 x 32 x 32
             nn.ReLU(True),
 
-            nn.Conv2d(32, 4, (1,1), stride=(1,1), padding=(1,1)),  # 4 x 32 x 32
+            nn.Conv2d(32, 4, (1,1), stride=(1,1), padding=(1,1)),
         )
 
         self.decoder = nn.Sequential(
