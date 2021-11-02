@@ -395,6 +395,17 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         model = Model(autoencoder.input, autoencoder.layers[-2].output)
         transform = lambda x: model(numpy.expand_dims(Resize(size=128)(x / 255.).numpy(), axis=-1))[0].numpy().reshape(-1)
 
+    elif method_name == 'no':
+        # image preprocessing as in self-supervised
+        transform = lambda x: torch.unsqueeze(  # add batch dimension
+            ToTensor()(  # convert PIL to tensor
+                Grayscale(num_output_channels=1)(  # apply grayscale, keeping 1 channel
+                    ToPILImage()(  # conver to PIL to apply grayscale
+                        Resize(size=128)(x)  # images are 256, but all models are trained with 128
+                    )
+                )
+            ), 0).detach().cpu().numpy()
+
     # elif method_name == 'trained_ae_v2':
     else:
         path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/{}/'.format(method_name)

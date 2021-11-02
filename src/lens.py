@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from src.constants import drugs, cell_lines, controls
 from src.comparison import get_f_transform
 from src.comparison import get_wells_of_drug_for_cell_line
+from src.self_supervised import Autoencoder_v2
 
 
 class DrugClassifier(nn.Module):
@@ -66,9 +67,9 @@ def get_codes_and_labels(path, cell_line, drugs_wells, drugs_labels, transform, 
     return encodings, labels
 
 
-def collect_data_and_split(path_to_data, save_path):
+def collect_data_and_split(path_to_data, method='trained_ae_v2', save_path=None):
 
-    transform = get_f_transform('trained_ae_v2', device=device)
+    transform = get_f_transform(method, device=device)
     drugs_and_controls = [*controls, *drugs]
 
     all_codes = []
@@ -90,14 +91,17 @@ def collect_data_and_split(path_to_data, save_path):
         all_codes.extend(codes)
         all_labels.extend(labels)
 
-    X_train, X_test, y_train, y_test = train_test_split(all_codes, all_labels, test_size=0.1, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(all_codes, all_labels, test_size=0.2, random_state=42)
     print("train set: {}".format(len(y_train)))
     print("test set: {}".format(len(y_test)))
 
-    pandas.DataFrame(X_train).to_csv(save_path + 'data/X_train.csv', index=False)
-    pandas.DataFrame(X_test).to_csv(save_path + 'data/X_test.csv', index=False)
-    pandas.DataFrame(y_train).to_csv(save_path + 'data/y_train.csv', index=False)
-    pandas.DataFrame(y_test).to_csv(save_path + 'data/y_test.csv', index=False)
+    if save_path:
+        pandas.DataFrame(X_train).to_csv(save_path + 'data/X_train.csv', index=False)
+        pandas.DataFrame(X_test).to_csv(save_path + 'data/X_test.csv', index=False)
+        pandas.DataFrame(y_train).to_csv(save_path + 'data/y_train.csv', index=False)
+        pandas.DataFrame(y_test).to_csv(save_path + 'data/y_test.csv', index=False)
+
+    return X_train, X_test, y_train, y_test
 
 
 def train_drug_classifier_alone(path_to_data, epochs, uid='', device=torch.device('cuda')):
@@ -127,14 +131,45 @@ def train_drug_classifier_alone(path_to_data, epochs, uid='', device=torch.devic
             optimizer = optim.Adam(model.parameters(), lr=lr)
             criterion = nn.CrossEntropyLoss()
 
-            last_train_acc, last_val_acc = run_supervised_classifier_training(train_loader, test_loader, model, optimizer,
-                                                                              criterion, device,
-                                                                              epochs=epochs,
-                                                                              save_to=save_path + 'lr={},bs={}/'.format(lr, bs))
+            run_supervised_classifier_training(train_loader, test_loader, model, optimizer, criterion, device,
+                                               epochs=epochs, save_to=save_path + 'lr={},bs={}/'.format(lr, bs))
 
 
-def train_drug_classifier_with_lens(path_to_data, epochs,  device=torch.device('cuda')):
-    pass
+def train_drug_classifier_with_lens(path_to_data, epochs, uid='', device=torch.device('cuda')):
+
+    # save_path = 'D:\ETH\projects\pheno-ml\\res\\drug_classifier\\{}\\'.format(uid)
+    save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/{}/'.format(uid)
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    X_train, X_test, y_train, y_test = collect_data_and_split(path_to_data, method='no')
+
+    # make datasets and loaders
+    train_dataset = TensorDataset(torch.Tensor(X_train), torch.LongTensor(y_train))
+    test_dataset = TensorDataset(torch.Tensor(X_test), torch.LongTensor(y_test))
+    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, drop_last=True)
+    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=True, drop_last=True)
+
+    dc = DrugClassifier(in_dim=4096, out_dim=33).to(device)
+    lens = Autoencoder_v2().to(device)
+
+    dc_optimizer = optim.Adam(dc.parameters(), lr=0.001)
+    dc_criterion = nn.CrossEntropyLoss()
+
+    lens_optimizer = optim.Adam(lens.parameters(), lr=0.001)
+    lens_criterion = nn.BCELoss()
+
+    # define feature extractor for lens
+    weights_path = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/1_1_3_1_0.5_0.5_1_0.75_0.5_v2/autoencoder_at_5.torch'
+    pretrained_model = Autoencoder_v2().to(device)
+    pretrained_model.load_state_dict(torch.load(weights_path, map_location=device))
+    pretrained_model.eval()
+
+    for advers_coef in [1, 2, 5, 10, 20, 50]:
+
+        run_adversarial_lens_training(train_loader, test_loader, dc, lens, pretrained_model.encoder,
+                                      dc_optimizer, lens_optimizer, dc_criterion, lens_criterion, advers_coef,
+                                      device, epochs=epochs, save_to=save_path + 'coef={}/'.format(advers_coef))
 
 
 def run_supervised_classifier_training(loader_train, loader_test, model, optimizer, criterion, device,
@@ -236,7 +271,111 @@ def run_supervised_classifier_training(loader_train, loader_test, model, optimiz
 
     history.to_csv(save_to + 'history.csv', index=False)
 
-    return train_acc, test_acc
+
+def run_adversarial_lens_training(loader_train, loader_test, classifier, lens, feature_extractor,
+                                  c_optimizer, l_optimizer, c_criterion, l_criterion, advers_coef,
+                                  device, lr_scheduler=None, epochs=10, save_to=""):
+
+    if not os.path.exists(save_to):
+        os.makedirs(save_to)
+
+    f_acc = Accuracy(top_k=3).to(device)
+
+    rec_loss_epoch = 0
+    acc_epoch = 0
+    rec_loss_history = []
+    loss_history = []
+    acc_history = []
+    for epoch in range(epochs):
+
+        start = time.time()
+        lens_loss_epoch = 0
+        classifier_loss_epoch = 0
+        rec_loss_epoch = 0
+        acc_epoch = 0
+        for images, labels in loader_train:
+
+            # TRAIN CLASSIFIER
+
+            # reset gradients to zero
+            c_optimizer.zero_grad()
+            # get features of drugs
+            images = images.float().to(device)
+            labels = labels.to(device)
+
+            # apply lens
+            reconstructions = lens(images)
+            # retrieve codes of reconstructions with pretrained model inside transform function
+            # TODO: make sure the transform is correct
+            encodings = feature_extractor(reconstructions)
+            # run through classifier
+            outputs = classifier(encodings)
+            # calculate loss
+            c_loss = c_criterion(outputs, labels)
+            c_loss.backward()
+            c_optimizer.step()
+
+            acc_epoch += float(f_acc(outputs, labels))
+
+            # TRAIN LENS
+
+            # reset the gradients to zero
+            l_optimizer.zero_grad()
+            with torch.enable_grad():
+
+                l_loss = 0.
+                # compute reconstructions
+                outputs = lens(images)
+                # compute training reconstruction loss
+                l_loss += l_criterion(outputs, images)
+                rec_loss_epoch += l_loss.item()
+                # introduce adversary: subtract classifier loss
+                l_loss -= c_loss.item() * advers_coef
+                # compute accumulated gradients
+                l_loss.backward()
+                # perform parameter update based on current gradients
+                l_optimizer.step()
+
+            # add the mini-batch training loss to epoch loss
+            lens_loss_epoch += l_loss.item()
+            classifier_loss_epoch += c_loss.item()
+
+        # compute the epoch training loss
+        lens_loss_epoch = lens_loss_epoch / len(loader_train)
+        classifier_loss_epoch = classifier_loss_epoch / len(loader_train)
+        rec_loss_epoch = rec_loss_epoch / len(loader_train)
+        acc_epoch = acc_epoch / len(loader_train)
+        rec_loss_history.append(rec_loss_epoch)
+        acc_history.append(acc_epoch)
+        loss_history.append(lens_loss_epoch)
+
+        val_acc = 0
+        for images, labels in loader_test:
+            # process drugs
+            images = images.float().to(device)
+            labels = labels.to(device)
+            reconstructions = lens(images)
+            # TODO: make sure transform is correct
+            encodings = feature_extractor(reconstructions)
+            outputs = classifier(encodings)
+            val_acc += float(f_acc(outputs, labels))
+
+        # compute epoch validation accuracy
+        val_acc = val_acc / len(loader_test)
+
+        # display the epoch training loss
+        print("epoch {}/{}: {} min, lens_loss = {:.4f}, classifier_loss = {:.4f},\n"
+              "reconstruction_loss = {:.4f}, accuracy = {:.4f}, t_accuracy = {:.4f}"
+              .format(epoch + 1, epochs, int((time.time() - start) / 60), lens_loss_epoch, classifier_loss_epoch,
+                      rec_loss_epoch, acc_epoch, val_acc))
+
+        torch.save(lens.state_dict(), save_to + 'lens_at_{}.torch'.format(epoch + 1))
+        torch.save(classifier.state_dict(), save_to + 'classifier_at_{}.torch'.format(epoch + 1))
+
+    history = pandas.DataFrame({'epoch': [x + 1 for x in range(len(loss_history))],
+                                'lens_loss': loss_history, 'lens_rec_loss': rec_loss_history, 'acc': acc_history})
+
+    history.to_csv(save_to + 'history.csv', index=False)
 
 
 if __name__ == "__main__":
@@ -249,3 +388,8 @@ if __name__ == "__main__":
 
     # classification of drugs vs controls
     train_drug_classifier_alone(path_to_data, 30, uid=uid, device=device)
+    train_drug_classifier_with_lens(path_to_data, 30, uid=uid, device=device)
+
+    # TODO:
+    #  - generate lensed encoded data,
+    #  - train alone on this data to fairly compare
