@@ -1,8 +1,9 @@
 
-import torch, os, time, pandas
+import torch, os, time, pandas, numpy
 from torch import nn, optim
 from tqdm import tqdm
 from torchvision.io import read_image
+from matplotlib import pyplot
 from sklearn.model_selection import train_test_split
 from torchmetrics import Recall, Accuracy, Specificity, Precision
 from torch.utils.data import DataLoader, TensorDataset
@@ -10,7 +11,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from src.constants import drugs, cell_lines, controls
 from src.comparison import get_f_transform
 from src.comparison import get_wells_of_drug_for_cell_line
-from src.self_supervised import Autoencoder_v2
+from src.self_supervised import Autoencoder
 
 
 class DrugClassifier(nn.Module):
@@ -67,7 +68,7 @@ def get_codes_and_labels(path, cell_line, drugs_wells, drugs_labels, transform, 
     return encodings, labels
 
 
-def collect_data_and_split(path_to_data, method='trained_ae_v2', save_path=None):
+def collect_data_and_split(path_to_data, method='trained_ae_v2', device=torch.device('cuda'), save_path=None):
 
     transform = get_f_transform(method, device=device)
     drugs_and_controls = [*controls, *drugs]
@@ -91,15 +92,15 @@ def collect_data_and_split(path_to_data, method='trained_ae_v2', save_path=None)
         all_codes.extend(codes)
         all_labels.extend(labels)
 
-    X_train, X_test, y_train, y_test = train_test_split(all_codes, all_labels, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(all_codes, all_labels, test_size=0.1, random_state=42)
     print("train set: {}".format(len(y_train)))
     print("test set: {}".format(len(y_test)))
 
     if save_path:
-        pandas.DataFrame(X_train).to_csv(save_path + 'data/X_train.csv', index=False)
-        pandas.DataFrame(X_test).to_csv(save_path + 'data/X_test.csv', index=False)
-        pandas.DataFrame(y_train).to_csv(save_path + 'data/y_train.csv', index=False)
-        pandas.DataFrame(y_test).to_csv(save_path + 'data/y_test.csv', index=False)
+        pandas.DataFrame(X_train).to_csv(save_path + 'X_train.csv', index=False)
+        pandas.DataFrame(X_test).to_csv(save_path + 'X_test.csv', index=False)
+        pandas.DataFrame(y_train).to_csv(save_path + 'y_train.csv', index=False)
+        pandas.DataFrame(y_test).to_csv(save_path + 'y_test.csv', index=False)
 
     return X_train, X_test, y_train, y_test
 
@@ -123,7 +124,7 @@ def train_drug_classifier_alone(path_to_data, epochs, uid='', device=torch.devic
     for lr in [0.0005, 0.001, 0.005, 0.01, 0.05, 0.1]:
         for bs in [256, 512, 1024, 2048]:
 
-            model = DrugClassifier(in_dim=4624, out_dim=33).to(device)
+            model = DrugClassifier(in_dim=4096, out_dim=33).to(device)
 
             train_loader = DataLoader(train_dataset, batch_size=bs, shuffle=True, drop_last=True)
             test_loader = DataLoader(test_dataset, batch_size=bs, shuffle=True, drop_last=True)
@@ -135,23 +136,24 @@ def train_drug_classifier_alone(path_to_data, epochs, uid='', device=torch.devic
                                                epochs=epochs, save_to=save_path + 'lr={},bs={}/'.format(lr, bs))
 
 
-def train_drug_classifier_with_lens(path_to_data, epochs, uid='', device=torch.device('cuda')):
+def train_lens_with_drug_classifier(path_to_data, epochs, uid='', device=torch.device('cuda')):
 
     # save_path = 'D:\ETH\projects\pheno-ml\\res\\drug_classifier\\{}\\'.format(uid)
     save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/{}/'.format(uid)
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
-    X_train, X_test, y_train, y_test = collect_data_and_split(path_to_data, method='no')
+    # collect images
+    X_train, X_test, y_train, y_test = collect_data_and_split(path_to_data, method='no', device=device)
 
     # make datasets and loaders
     train_dataset = TensorDataset(torch.Tensor(X_train), torch.LongTensor(y_train))
     test_dataset = TensorDataset(torch.Tensor(X_test), torch.LongTensor(y_test))
-    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, drop_last=True)
-    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=True, drop_last=True)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, drop_last=True)
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True, drop_last=True)
 
     dc = DrugClassifier(in_dim=4096, out_dim=33).to(device)
-    lens = Autoencoder_v2().to(device)
+    lens = Autoencoder().to(device)
 
     dc_optimizer = optim.Adam(dc.parameters(), lr=0.001)
     dc_criterion = nn.CrossEntropyLoss()
@@ -160,14 +162,14 @@ def train_drug_classifier_with_lens(path_to_data, epochs, uid='', device=torch.d
     lens_criterion = nn.BCELoss()
 
     # define feature extractor for lens
-    weights_path = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/1_1_3_1_0.5_0.5_1_0.75_0.5_v2/autoencoder_at_5.torch'
-    pretrained_model = Autoencoder_v2().to(device)
+    weights_path = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/trained_ae_v2/autoencoder_at_5.torch'
+    pretrained_model = Autoencoder().to(device)
     pretrained_model.load_state_dict(torch.load(weights_path, map_location=device))
     pretrained_model.eval()
 
     for advers_coef in [1, 2, 5, 10, 20, 50]:
 
-        run_adversarial_lens_training(train_loader, test_loader, dc, lens, pretrained_model.encoder,
+        run_adversarial_lens_training(train_loader, test_loader, dc, lens, pretrained_model,
                                       dc_optimizer, lens_optimizer, dc_criterion, lens_criterion, advers_coef,
                                       device, epochs=epochs, save_to=save_path + 'coef={}/'.format(advers_coef))
 
@@ -306,8 +308,8 @@ def run_adversarial_lens_training(loader_train, loader_test, classifier, lens, f
             # apply lens
             reconstructions = lens(images)
             # retrieve codes of reconstructions with pretrained model inside transform function
-            # TODO: make sure the transform is correct
-            encodings = feature_extractor(reconstructions)
+            encodings = feature_extractor.encoder(reconstructions)
+            encodings = encodings.reshape((encodings.shape[0], -1))
             # run through classifier
             outputs = classifier(encodings)
             # calculate loss
@@ -355,8 +357,8 @@ def run_adversarial_lens_training(loader_train, loader_test, classifier, lens, f
             images = images.float().to(device)
             labels = labels.to(device)
             reconstructions = lens(images)
-            # TODO: make sure transform is correct
-            encodings = feature_extractor(reconstructions)
+            encodings = feature_extractor.encoder(reconstructions)
+            encodings = encodings.reshape((encodings.shape[0], -1))
             outputs = classifier(encodings)
             val_acc += float(f_acc(outputs, labels))
 
@@ -372,24 +374,59 @@ def run_adversarial_lens_training(loader_train, loader_test, classifier, lens, f
         torch.save(lens.state_dict(), save_to + 'lens_at_{}.torch'.format(epoch + 1))
         torch.save(classifier.state_dict(), save_to + 'classifier_at_{}.torch'.format(epoch + 1))
 
-    history = pandas.DataFrame({'epoch': [x + 1 for x in range(len(loss_history))],
-                                'lens_loss': loss_history, 'lens_rec_loss': rec_loss_history, 'acc': acc_history})
+    plot_reconstructions_and_lens_effects(loader_test, lens, feature_extractor, save_to=save_to, n_images=30)
 
+    history = pandas.DataFrame({'epoch': [x + 1 for x in range(len(loss_history))], 'lens_loss': loss_history,
+                                'lens_rec_loss': rec_loss_history, 'acc': acc_history})
     history.to_csv(save_to + 'history.csv', index=False)
+
+
+def plot_reconstructions_and_lens_effects(data_loader, lens, feature_extractor, save_to='res/', n_images=10):
+
+    for i in range(n_images):
+        images, _ = next(iter(data_loader))
+        initial_image = images.squeeze()[0].numpy()
+        reconstructed = feature_extractor(torch.unsqueeze(images[0], 0).to(device))
+        lensed = lens(torch.unsqueeze(images[0], 0).to(device))
+
+        pyplot.figure()
+        pyplot.subplot(131)
+        pyplot.imshow(initial_image, cmap="gray")
+        pyplot.title("original")
+        pyplot.subplot(132)
+        pyplot.imshow(reconstructed.cpu().detach().numpy()[0][0], cmap="gray")
+        pyplot.title("reconstructed")
+        pyplot.subplot(133)
+        pyplot.imshow(lensed.cpu().detach().numpy()[0][0], cmap="gray")
+        pyplot.title("lensed")
+
+        if save_to is not None:
+            if not os.path.exists(save_to + 'recs/'):
+                os.makedirs(save_to + 'recs/')
+            pyplot.savefig(save_to + 'recs/{}.pdf'.format(i))
+        else:
+            pyplot.show()
+    pyplot.close('all')
 
 
 if __name__ == "__main__":
 
-    path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/data/'
+    path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
+    save_data_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/data/'
 
     device = torch.device('cpu')
 
-    uid = 'without_lens'
+    # # obtain codes and save as DFs
+    # collect_data_and_split(path_to_data, method='trained_ae_v2', device=device, save_path=save_data_path)
 
-    # classification of drugs vs controls
-    train_drug_classifier_alone(path_to_data, 30, uid=uid, device=device)
-    train_drug_classifier_with_lens(path_to_data, 30, uid=uid, device=device)
+    # # classification of 33 drugs
+    # train_drug_classifier_alone(save_data_path, 30, uid='without_lens', device=device)
 
-    # TODO:
-    #  - generate lensed encoded data,
-    #  - train alone on this data to fairly compare
+    # training of the lens with classification adversary
+    train_lens_with_drug_classifier(path_to_data, 30, uid='lens_itself', device=device)
+
+    # # saving lensed data
+    # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/lensed_data/'
+    # collect_data_and_split(path_to_data, method='lens', save_path=save_path)
+    # # classification of 33 drugs with lensed data
+    # train_drug_classifier_alone(save_path, 30, uid='with_lens', device=device)

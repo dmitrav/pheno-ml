@@ -14,7 +14,7 @@ from torchmetrics import Accuracy, Recall, Precision, Specificity
 from tensorflow.keras.models import Model
 
 from src.autoencoder import get_trained_autoencoder
-from src.self_supervised import Autoencoder, Autoencoder_v2
+from src.self_supervised import Autoencoder
 from src.constants import cell_lines, drugs
 from src import pretrained
 
@@ -98,17 +98,13 @@ def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, e
                     elif model_name == 'dino_vit':
                         model = Classifier(in_dim=768).to(device)
                     elif model_name == 'trained_ae_v1':
-                        # old tensorflow model
+                        # for old tensorflow model
                         model = Classifier(in_dim=4096).to(device)
-                    # elif model_name == 'trained_ae_v2':
+                    elif model_name == 'trained_ae_v2':
+                        # for new pytorch model
+                        model = Classifier(in_dim=4096).to(device)
                     else:
-                        # new pytorch model: trained_ae_v2
-                        if model_name.endswith('_v2'):
-                            model = Classifier(in_dim=4096).to(device)
-                        else:
-                            model = Classifier(in_dim=4624).to(device)
-                    # else:
-                    #     raise ValueError('Unknown model')
+                        raise ValueError('Unknown model')
 
                     params = 'lr={},m={},wd={}'.format(lr, m, wd)
                     if not os.path.exists(save_path + '{}/{}/'.format(model_name, params)):
@@ -128,19 +124,20 @@ def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, e
 
     for model_name in models:
         for param_set in os.listdir(save_path + model_name):
-            data = pandas.read_csv(save_path + '{}/{}/history.csv'.format(model_name, param_set))
-            best_f1_data = data.loc[data['f1'] == data['f1'].max(), :]
+            if param_set != '.DS_Store':
+                data = pandas.read_csv(save_path + '{}/{}/history.csv'.format(model_name, param_set))
+                best_f1_data = data.loc[data['f1'] == data['f1'].max(), :]
 
-            results['method'].append(model_name)
-            results['lrs'].append(float(param_set.split(',')[0].split('=')[1]))
-            results['ms'].append(float(param_set.split(',')[1].split('=')[1]))
-            results['wds'].append(float(param_set.split(',')[2].split('=')[1]))
-            results['epoch'].append(int(best_f1_data['epoch']))
-            results['accuracy'].append(float(best_f1_data['accuracy']))
-            results['recall'].append(float(best_f1_data['recall']))
-            results['precision'].append(float(best_f1_data['precision']))
-            results['specificity'].append(float(best_f1_data['specificity']))
-            results['f1'].append(float(best_f1_data['f1']))
+                results['method'].append(model_name)
+                results['lrs'].append(float(param_set.split(',')[0].split('=')[1]))
+                results['ms'].append(float(param_set.split(',')[1].split('=')[1]))
+                results['wds'].append(float(param_set.split(',')[2].split('=')[1]))
+                results['epoch'].append(int(best_f1_data['epoch']))
+                results['accuracy'].append(float(best_f1_data['accuracy']))
+                results['recall'].append(float(best_f1_data['recall']))
+                results['precision'].append(float(best_f1_data['precision']))
+                results['specificity'].append(float(best_f1_data['specificity']))
+                results['f1'].append(float(best_f1_data['f1']))
 
     results_df = pandas.DataFrame(results)
     results_df.to_csv(save_path + 'classification{}.csv'.format(uid), index=False)
@@ -396,33 +393,49 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         transform = lambda x: model(numpy.expand_dims(Resize(size=128)(x / 255.).numpy(), axis=-1))[0].numpy().reshape(-1)
 
     elif method_name == 'no':
-        # image preprocessing as in self-supervised
-        transform = lambda x: torch.unsqueeze(  # add batch dimension
-            ToTensor()(  # convert PIL to tensor
-                Grayscale(num_output_channels=1)(  # apply grayscale, keeping 1 channel
-                    ToPILImage()(  # conver to PIL to apply grayscale
-                        Resize(size=128)(x)  # images are 256, but all models are trained with 128
-                    )
+        # just image preprocessing as in self-supervised
+        transform = lambda x: ToTensor()(  # convert PIL to tensor
+            Grayscale(num_output_channels=1)(  # apply grayscale, keeping 1 channel
+                ToPILImage()(  # convert to PIL to apply grayscale
+                    Resize(size=128)(x)  # images are 256, but all models are trained with 128
                 )
-            ), 0).detach().cpu().numpy()
+            )).detach().cpu().numpy()
 
-    # elif method_name == 'trained_ae_v2':
-    else:
+    elif method_name == 'lens':
+
+        path_to_fe = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/trained_ae_v2/'
+        # path_to_model = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\trained_ae_v2\\'
+        model = Autoencoder().to(device)
+        # load a trained model to use it in the transform
+        model.load_state_dict(torch.load(path_to_fe + 'autoencoder_at_5.torch', map_location=device))
+        model.eval()
+        feature_extractor = model.encoder
+
+        path_to_lens = ''  # TODO: define path
+        lens = Autoencoder().to(device)
+        # load a trained model to use it in the transform
+        lens.load_state_dict(torch.load(path_to_lens + 'lens_at_5.torch', map_location=device))
+        lens.eval()
+
+        # create a transform function
+        transform = lambda x: feature_extractor(  # extract features
+            lens(torch.unsqueeze(Resize(size=128)(x / 255.), 0))  # of the lensed image
+        ).reshape(-1).detach().cpu().numpy()
+
+    elif method_name == 'trained_ae_v2':
+
         path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/{}/'.format(method_name)
         # path_to_model = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\{}\\'.format(method_name)
-        if method_name.endswith('_v2'):
-            model = Autoencoder_v2().to(device)
-        else:
-            model = Autoencoder().to(device)
-        # load a trained deep classifier to use it in the transform
+        model = Autoencoder().to(device)
+        # load a trained model to use it in the transform
         model.load_state_dict(torch.load(path_to_model + 'autoencoder_at_5.torch', map_location=device))
         model.eval()
 
-        # create a transform function with weakly supervised classifier
+        # create a transform function
         transform = lambda x: model.encoder(torch.unsqueeze(Resize(size=128)(x / 255.), 0)).reshape(-1).detach().cpu().numpy()
 
-    # else:
-    #     raise ValueError('Method not recognized')
+    else:
+        raise ValueError('Method not recognized')
 
     return transform
 
@@ -498,8 +511,8 @@ def get_common_control_wells():
 
 def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda')):
 
-    # save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/'
-    save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\similarity\\'
+    save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/'
+    # save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\similarity\\'
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
@@ -536,8 +549,8 @@ def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda'
 def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_images, methods, range_with_step, uid='', device=torch.device('cuda')):
     """ Cluster the dataset over multiple parameters, evaluate results and save results as a dataframe. """
 
-    # save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/'
-    save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\clustering\\'
+    save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/'
+    # save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\clustering\\'
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
@@ -556,7 +569,7 @@ def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_imag
                     max_conc_drug_wells, plate = get_wells_of_drug_for_cell_line(cell_line, drug)
                     all_drugs_wells.extend([plate+'_'+well for well in max_conc_drug_wells])
 
-            all_codes, _ = get_image_encodings_of_cell_line(path_to_images, cell_line, all_drugs_wells, transform=transform)
+            all_codes, _ = get_image_encodings_of_cell_line(path_to_images, cell_line, all_drugs_wells, transform=transform, device=device)
             encodings = numpy.array(all_codes)
 
             for min_cluster_size in tqdm(range(*range_with_step)):
@@ -636,8 +649,8 @@ def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
     results.loc[results['method'] == 'trained_ae_v1', 'method'] = 'ConvAE v1\n(trained)'
     results.loc[results['method'] == 'trained_ae_v2', 'method'] = 'ConvAE v2\n(trained)'
 
-    # # filter out failed clustering attempts for better visualization
-    # results = results.drop(results.loc[results['silhouette'] == -1, :].index)
+    # filter out failed clustering attempts for better visualization
+    results = results.drop(results.loc[results['silhouette'] == -1, :].index)
     # # filter out too high calinski-harabasz values for better visualization
     # results = results.drop(results.loc[results['calinski_harabasz'] > 20000, :].index)
 
@@ -663,22 +676,20 @@ if __name__ == "__main__":
     # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
     path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
     # models = ['resnet50', 'swav_resnet50', 'dino_resnet50']
-    models = ['1_1_3_1_0.5_0.5_1_0.75_0.5_v2', '1_1_2_1_0.5_0.5_1_0.75_0.5', '1_1_3_1_0.5_0.5_1_0.75_0.5',
-              '1_2_2_1_0.5_0.5_1_0.75_0.5', '1_3_1_0.5_1_0.75', '1_4_1_0.5_1_0.75', '4_0.5_0.75']
+    models = ['1_1_3_1_0.5_0.5_1_0.75_0.5_v2']
 
     device = torch.device('cpu')
 
-    evaluate = True
-    plot = False
+    evaluate = False
+    plot = True
 
-    uid = '_second_half'
+    uid = '_trained_ae_v2'
 
     if evaluate:
-        # # distance-based analysis
-        # compare_similarity(path_to_data, models, uid=uid, device=device)
-        # # clustering analysis within cell lines
-        # collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid='by_cell_lines{}'.format(uid), device=device)
-
+        # clustering analysis within cell lines
+        collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid=uid, device=device)
+        # distance-based analysis
+        compare_similarity(path_to_data, models, uid=uid, device=device)
         # classification of drugs vs controls
         train_classifiers_with_pretrained_encoder_and_save_results(path_to_data, 25, models, uid=uid, batch_size=1024, device=device)
 

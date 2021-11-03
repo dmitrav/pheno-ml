@@ -25,54 +25,6 @@ class Autoencoder(nn.Module):
             nn.Conv2d(64, 32, (3,3), stride=(1,1), padding=(1,1)),  # 32 x 32 x 32
             nn.ReLU(True),
 
-            nn.Conv2d(32, 4, (1,1), stride=(1,1), padding=(1,1)),
-        )
-
-        self.decoder = nn.Sequential(
-
-            nn.ConvTranspose2d(4, 32, (1,1), stride=(1,1), padding=(1,1)),  # 32 x 32 x 32
-            nn.ReLU(True),
-            nn.Upsample(scale_factor=2),  # 32 x 64 x 64
-
-            nn.ConvTranspose2d(32, 64, (3,3), stride=(1,1), padding=(1,1)),  # 64 x 64 x 64
-            nn.ReLU(True),
-            nn.Upsample(scale_factor=2),  # 64 x 128 x 128
-
-            nn.ConvTranspose2d(64, 128, (3,3), stride=(1,1), padding=(1,1)),  # 128 x 128 x 128
-            nn.ReLU(True),
-
-            nn.ConvTranspose2d(128, 1, (3,3), stride=(1,1), padding=(1,1)),
-            nn.Sigmoid()
-        )
-        print(self)
-        print('number of parameters: {}\n'.format(self.count_parameters()))
-
-    def forward(self, features):
-        encoded = self.encoder(features)
-        decoded = self.decoder(encoded)
-        return decoded
-
-    def count_parameters(self):
-        return sum(p.numel() for p in self.parameters() if p.requires_grad)
-
-
-class Autoencoder_v2(nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-        self.encoder = nn.Sequential(
-            nn.Conv2d(1, 128, (3,3), stride=(1,1), padding=(1,1)),  # 128 x 128 x 128
-            nn.ReLU(True),
-            nn.MaxPool2d(2),  # 128 x 64 x 64
-
-            nn.Conv2d(128, 64, (3,3), stride=(1,1), padding=(1,1)),  # 64 x 64 x 64
-            nn.ReLU(True),
-            nn.MaxPool2d(2),  # 64 x 32 x 32
-
-            nn.Conv2d(64, 32, (3,3), stride=(1,1), padding=(1,1)),  # 32 x 32 x 32
-            nn.ReLU(True),
-
             nn.Conv2d(32, 4, (3, 3), stride=(1,1), padding=(1,1)),  # 4 x 32 x 32
         )
 
