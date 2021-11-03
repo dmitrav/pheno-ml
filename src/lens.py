@@ -153,6 +153,9 @@ def train_lens_with_drug_classifier(path_to_data, epochs, uid='', device=torch.d
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True, drop_last=True)
 
     dc = DrugClassifier(in_dim=4096, out_dim=33).to(device)
+    # TODO: consider the strategy:
+    #  - initialise with trained_ae_v2,
+    #  - train with low lr (also, much lower than classifier's)
     lens = Autoencoder().to(device)
 
     dc_optimizer = optim.Adam(dc.parameters(), lr=0.001)

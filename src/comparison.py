@@ -230,12 +230,11 @@ def plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/ph
     results.loc[results['method'] == 'swav_resnet50', 'method'] = 'RN-50+SwAV\n(pretrained)'
     results.loc[results['method'] == 'dino_resnet50', 'method'] = 'RN-50+DINO\n(pretrained)'
     results.loc[results['method'] == 'dino_vit', 'method'] = 'ViT+DINO\n(pretrained)'
-    results.loc[results['method'] == 'trained_ae_v1', 'method'] = 'ConvAE v1\n(trained)'
-    results.loc[results['method'] == 'trained_ae_v2', 'method'] = 'ConvAE v2\n(trained)'
+    results.loc[results['method'] == 'trained_ae_v2', 'method'] = 'ConvAE\n(trained)'
 
     i = 1
     seaborn.set()
-    pyplot.figure(figsize=(12,3))
+    pyplot.figure(figsize=(10,3))
     pyplot.suptitle('Comparison of drug-control classification')
     for metric in ['accuracy', 'recall', 'specificity', 'f1']:
         pyplot.subplot(1, 4, i)
@@ -615,8 +614,7 @@ def plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
     results.loc[results['method'] == 'swav_resnet50', 'method'] = 'RN-50+SwAV\n(pretrained)'
     results.loc[results['method'] == 'dino_resnet50', 'method'] = 'RN-50+DINO\n(pretrained)'
     results.loc[results['method'] == 'dino_vit', 'method'] = 'ViT+DINO\n(pretrained)'
-    results.loc[results['method'] == 'trained_ae_v1', 'method'] = 'ConvAE v1\n(trained)'
-    results.loc[results['method'] == 'trained_ae_v2', 'method'] = 'ConvAE v2\n(trained)'
+    results.loc[results['method'] == 'trained_ae_v2', 'method'] = 'ConvAE\n(trained)'
 
     # normalize distances
     for method in list(results['method'].unique()):
@@ -646,20 +644,25 @@ def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
     results.loc[results['method'] == 'swav_resnet50', 'method'] = 'RN-50+SwAV\n(pretrained)'
     results.loc[results['method'] == 'dino_resnet50', 'method'] = 'RN-50+DINO\n(pretrained)'
     results.loc[results['method'] == 'dino_vit', 'method'] = 'ViT+DINO\n(pretrained)'
-    results.loc[results['method'] == 'trained_ae_v1', 'method'] = 'ConvAE v1\n(trained)'
-    results.loc[results['method'] == 'trained_ae_v2', 'method'] = 'ConvAE v2\n(trained)'
+    results.loc[results['method'] == 'trained_ae_v2', 'method'] = 'ConvAE\n(trained)'
 
+    size_before = results.shape[0]
+    # filter out partitions producing a lot of noise points
+    results = results.drop(results.loc[results['noise'] > 33, :].index)
     # filter out failed clustering attempts for better visualization
     results = results.drop(results.loc[results['silhouette'] == -1, :].index)
-    # # filter out too high calinski-harabasz values for better visualization
-    # results = results.drop(results.loc[results['calinski_harabasz'] > 20000, :].index)
+    # filter out too high calinski-harabasz values for better visualization
+    results = results.drop(results.loc[results['calinski_harabasz'] > 9999, :].index)
+    # filter out too high davies-bouldin values for better visualization
+    results = results.drop(results.loc[results['davies_bouldin'] < 0.33, :].index)
+    print('{}% filtered out (clustering)'.format(int((size_before - results.shape[0]) / size_before * 100)))
 
     results['not_noise'] = 100 - results['noise']
     results['davies_bouldin-1'] = 1 / results['davies_bouldin']
 
     seaborn.set()
     i = 1
-    pyplot.figure(figsize=(12, 3))
+    pyplot.figure(figsize=(10, 3))
     pyplot.suptitle('Comparison of clustering')
     for metric in ['not_noise', 'calinski_harabasz', 'silhouette', 'davies_bouldin-1']:
         pyplot.subplot(1, 4, i)
