@@ -3,6 +3,7 @@ from matplotlib import pyplot
 from torch import nn
 from src.datasets import MultiCropDataset
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import MultiStepLR
 from byol_pytorch import BYOL
 
 from torch import nn
@@ -284,20 +285,20 @@ def train_autoencoder(epochs, data_loader_train, trained_ae=None, device=torch.d
     if trained_ae is not None:
         model = trained_ae
     else:
-        # model = Autoencoder().to(device)
-        model = Autoencoder_v2().to(device)
+        model = Autoencoder().to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     criterion = nn.BCELoss()
+    scheduler = MultiStepLR(optimizer, [5], gamma=0.3)
 
     rec_loss, val_rec_loss = run_autoencoder_training(data_loader_train, model, optimizer, criterion, device,
-                                                      epochs=epochs, save_path=save_path)
+                                                      epochs=epochs, save_path=save_path, lr_scheduler=scheduler)
 
     # save history
     history = pandas.DataFrame({'epoch': [x + 1 for x in range(len(rec_loss))], 'loss': rec_loss})
     history.to_csv(save_path + '\\history.csv', index=False)
     # save reconstruction
-    plot_reconstruction(data_loader_train, model, save_to=save_path, n_images=10)
+    plot_reconstruction(data_loader_train, model, save_to=save_path, n_images=20)
 
 
 def run_autoencoder_training(data_loader_train, model, optimizer, criterion, device,
@@ -375,9 +376,9 @@ if __name__ == "__main__":
 
     path_to_data = "D:\ETH\projects\pheno-ml\data\\full\\"
     crop_size = 128
-    epochs = 5
+    epochs = 15
     batch_size = 64
-    train_size = 250000
+    train_size = -1
     device = torch.device('cuda')
 
     strategies = define_cropping_strategies(crop_size)
@@ -387,5 +388,5 @@ if __name__ == "__main__":
         train_multi_crop = MultiCropDataset(path_to_data, *cropping_strategy, no_aug=False, size_dataset=train_size)
         print('training data:', train_multi_crop.__len__())
         data_loader_train = DataLoader(train_multi_crop, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, drop_last=True)
-        train_autoencoder(epochs, data_loader_train, device=device, run_id=cropping_id + '_v2')
+        train_autoencoder(epochs, data_loader_train, device=device, run_id='trained_ae_v2_full')
 
