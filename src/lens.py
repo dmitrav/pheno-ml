@@ -345,6 +345,9 @@ def run_adversarial_lens_training(loader_train, loader_test, classifier, lens, f
             lens_loss_epoch += l_loss.item()
             classifier_loss_epoch += c_loss.item()
 
+            # debug
+            plot_reconstructions_and_lens_effects(loader_test, lens, feature_extractor, save_to=None, n_images=5)
+
         # compute the epoch training loss
         lens_loss_epoch = lens_loss_epoch / len(loader_train)
         classifier_loss_epoch = classifier_loss_epoch / len(loader_train)
@@ -390,18 +393,25 @@ def plot_reconstructions_and_lens_effects(data_loader, lens, feature_extractor, 
         images, _ = next(iter(data_loader))
         initial_image = images.squeeze()[0].numpy()
         reconstructed = feature_extractor(torch.unsqueeze(images[0], 0).to(device))
+        reconstructed = reconstructed.cpu().detach().numpy()[0][0]
         lensed = lens(torch.unsqueeze(images[0], 0).to(device))
+        lensed = lensed.cpu().detach().numpy()[0][0]
+
+        difference = numpy.abs(reconstructed - lensed)
 
         pyplot.figure()
-        pyplot.subplot(131)
+        pyplot.subplot(141)
         pyplot.imshow(initial_image, cmap="gray")
         pyplot.title("original")
-        pyplot.subplot(132)
-        pyplot.imshow(reconstructed.cpu().detach().numpy()[0][0], cmap="gray")
+        pyplot.subplot(142)
+        pyplot.imshow(reconstructed, cmap="gray")
         pyplot.title("reconstructed")
-        pyplot.subplot(133)
-        pyplot.imshow(lensed.cpu().detach().numpy()[0][0], cmap="gray")
+        pyplot.subplot(143)
+        pyplot.imshow(lensed, cmap="gray")
         pyplot.title("lensed")
+        pyplot.subplot(144)
+        pyplot.imshow(difference, cmap="gray")
+        pyplot.title("difference")
 
         if save_to is not None:
             if not os.path.exists(save_to + 'recs/'):
