@@ -645,7 +645,7 @@ def plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
     pyplot.show()
 
 
-def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines.csv'):
+def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering.csv'):
 
     results = pandas.read_csv(path_to_results)
 
@@ -683,21 +683,127 @@ def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
     pyplot.show()
 
 
+def plot_cropping_strategies():
+
+    sim_1 = pandas.read_csv('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_first_half.csv')
+    sim_2 = pandas.read_csv('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity_second_half.csv')
+    sim_data = pandas.concat([sim_1, sim_2])
+
+    clu_1 = pandas.read_csv('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_first_half.csv')
+    clu_2 = pandas.read_csv('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering_by_cell_lines_second_half.csv')
+    clust_data = pandas.concat([clu_1, clu_2])
+    # filter out partitions producing a lot of noise points
+    clust_data = clust_data.drop(clust_data.loc[clust_data['noise'] > 33, :].index)
+    # filter out failed clustering attempts for better visualization
+    clust_data = clust_data.drop(clust_data.loc[clust_data['silhouette'] == -1, :].index)
+    # filter out too high calinski-harabasz values for better visualization
+    clust_data = clust_data.drop(clust_data.loc[clust_data['calinski_harabasz'] > 9999, :].index)
+    # filter out too high davies-bouldin values for better visualization
+    clust_data = clust_data.drop(clust_data.loc[clust_data['davies_bouldin'] < 0.33, :].index)
+
+    cla_1 = pandas.read_csv('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_first_half.csv')
+    cla_2 = pandas.read_csv('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification_second_half.csv')
+    cla_2 = cla_2.drop(cla_2.loc[cla_2['method'] == '1_1_3_1_0.5_0.5_1_0.75_0.5_v2', :].index)
+    class_data = pandas.concat([cla_1, cla_2])
+
+    ordering = [
+        # one crop
+        '1_1_1',
+        # two crops
+        '2_0.5_0.75',
+        '1_1_1_0.5_1_0.75',
+        # three crops
+        '3_0.5_0.75',
+        '1_2_1_0.5_1_0.75',
+        '1_1_1_1_0.5_0.5_1_0.75_0.5',
+        # four crops
+        '4_0.5_0.75',
+        '1_3_1_0.5_1_0.75',
+        '1_1_2_1_0.5_0.5_1_0.75_0.5',
+        # five crops
+        '1_4_1_0.5_1_0.75',
+        '1_2_2_1_0.5_0.5_1_0.75_0.5',
+        '1_1_3_1_0.5_0.5_1_0.75_0.5'
+    ]
+
+    similarity = []
+    for setting in ordering:
+        subset = sim_data.loc[sim_data['method'] == setting, :]
+        mean_distance = numpy.mean([
+            subset['euclidean'] / subset['euclidean'].max(),
+            subset['braycurtis'] / subset['braycurtis'].max()
+        ])
+        similarity.append(1 / mean_distance)
+
+    classification = []
+    for setting in ordering:
+        subset = class_data.loc[class_data['method'] == setting, :]
+        classification.append(subset['accuracy'].max())
+
+    clustering = []
+    for setting in ordering:
+        subset = clust_data.loc[clust_data['method'] == setting, :]
+        mean_score = numpy.mean([
+            subset['silhouette'] / subset['silhouette'].max(),
+            subset['calinski_harabasz'] / subset['calinski_harabasz'].max(),
+            1 / subset['davies_bouldin'] / subset['davies_bouldin'].max()
+        ])
+        clustering.append(mean_score)
+
+    averaged_similarity = [
+        similarity[0],
+        max(similarity[1], similarity[2]),
+        max(similarity[3], similarity[4], similarity[5]),
+        max(similarity[6], similarity[7], similarity[8]),
+        max(similarity[9], similarity[10], similarity[11])
+    ]
+    averaged_classification = [
+        classification[0],
+        max(classification[1], classification[2]),
+        max(classification[3], classification[4], classification[5]),
+        max(classification[6], classification[7], classification[8]),
+        max(classification[9], classification[10], classification[11])
+    ]
+    averaged_clustering = [
+        clustering[0],
+        max(clustering[1], clustering[2]),
+        max(clustering[3], clustering[4], clustering[5]),
+        max(clustering[6], clustering[7], clustering[8]),
+        max(clustering[9], clustering[10], clustering[11])
+    ]
+
+    # renormalize all scores to 0-1
+    averaged_similarity = [x / max(averaged_similarity) for x in averaged_similarity]
+    averaged_clustering = [x / max(averaged_clustering) for x in averaged_clustering]
+    averaged_classification = [x / max(averaged_classification) for x in averaged_classification]
+
+    pyplot.figure(figsize=(4,3))
+    pyplot.plot([n for n in range(1,6)], averaged_similarity, '--o', label='similarity')
+    pyplot.plot([n for n in range(1,6)], averaged_clustering, '--o', label='clustering')
+    pyplot.plot([n for n in range(1,6)], averaged_classification, '--o', label='classification')
+    pyplot.xticks([n for n in range(1,6)], [n for n in range(1,6)])
+    pyplot.grid()
+    pyplot.xlabel('# crops')
+    pyplot.ylabel('average performance')
+    pyplot.legend()
+    pyplot.tight_layout()
+    pyplot.show()
+
+
 if __name__ == "__main__":
 
-    path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
-    # path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
+    # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
+    path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
     # models = ['resnet50', 'swav_resnet50', 'dino_resnet50']
     models = ['trained_ae_full']
 
-    device = torch.device('cuda')
-
-    evaluate = True
-    plot = False
-
-    uid = 'trained_ae_full'
+    evaluate = False
+    plot = True
 
     if evaluate:
+        uid = 'trained_ae_full'
+        device = torch.device('cuda')
+
         # clustering analysis within cell lines
         collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_data, models, (10, 160, 10), uid=uid, device=device)
         # distance-based analysis
@@ -706,6 +812,7 @@ if __name__ == "__main__":
         train_classifiers_with_pretrained_encoder_and_save_results(path_to_data, 25, models, uid=uid, batch_size=1024, device=device)
 
     if plot:
-        plot_similarity_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/similarity.csv')
-        plot_clustering_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering.csv')
-        plot_classification_results('/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/classification.csv')
+        plot_similarity_results()
+        plot_clustering_results()
+        plot_classification_results()
+        plot_cropping_strategies()
