@@ -282,7 +282,7 @@ def train_autoencoder(epochs, data_loader_train, trained_ae=None, device=torch.d
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
-    if trained_ae is not None:
+    if trained_ae:
         model = trained_ae
     else:
         model = Autoencoder().to(device)
@@ -291,12 +291,12 @@ def train_autoencoder(epochs, data_loader_train, trained_ae=None, device=torch.d
     criterion = nn.BCELoss()
     scheduler = MultiStepLR(optimizer, [5], gamma=0.3)
 
-    rec_loss, val_rec_loss = run_autoencoder_training(data_loader_train, model, optimizer, criterion, device,
-                                                      epochs=epochs, save_path=save_path, lr_scheduler=scheduler)
+    # rec_loss, val_rec_loss = run_autoencoder_training(data_loader_train, model, optimizer, criterion, device,
+    #                                                   epochs=epochs, save_path=save_path, lr_scheduler=scheduler)
+    # # save history
+    # history = pandas.DataFrame({'epoch': [x + 1 for x in range(len(rec_loss))], 'loss': rec_loss})
+    # history.to_csv(save_path + '\\history.csv', index=False)
 
-    # save history
-    history = pandas.DataFrame({'epoch': [x + 1 for x in range(len(rec_loss))], 'loss': rec_loss})
-    history.to_csv(save_path + '\\history.csv', index=False)
     # save reconstruction
     plot_reconstruction(data_loader_train, model, save_to=save_path, n_images=20)
 
@@ -389,4 +389,3 @@ if __name__ == "__main__":
         print('training data:', train_multi_crop.__len__())
         data_loader_train = DataLoader(train_multi_crop, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, drop_last=True)
         train_autoencoder(epochs, data_loader_train, device=device, run_id='trained_ae_v2_full')
-

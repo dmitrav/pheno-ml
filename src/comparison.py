@@ -45,8 +45,8 @@ class Classifier(nn.Module):
 
 def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, epochs, models, uid='', device=torch.device('cuda'), batch_size=256):
 
-    # save_path = 'D:\ETH\projects\pheno-ml\\res\\comparison\\classification\\'
-    save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/'
+    save_path = 'D:\ETH\projects\pheno-ml\\res\\comparison\\classification\\'
+    # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/'
 
     for model_name in models:
 
@@ -97,24 +97,21 @@ def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, e
                         model = Classifier().to(device)
                     elif model_name == 'dino_vit':
                         model = Classifier(in_dim=768).to(device)
-                    elif model_name == 'trained_ae_v1':
-                        # for old tensorflow model
-                        model = Classifier(in_dim=4096).to(device)
-                    elif model_name == 'trained_ae_v2':
-                        # for new pytorch model
+                    elif model_name.startswith('trained_ae'):
+                        # my models
                         model = Classifier(in_dim=4096).to(device)
                     else:
                         raise ValueError('Unknown model')
 
                     params = 'lr={},m={},wd={}'.format(lr, m, wd)
-                    if not os.path.exists(save_path + '{}/{}/'.format(model_name, params)):
-                        os.makedirs(save_path + '{}/{}/'.format(model_name, params))
+                    if not os.path.exists(save_path + '{}\\{}\\'.format(model_name, params)):
+                        os.makedirs(save_path + '{}\\{}\\'.format(model_name, params))
 
                     optimizer = optim.SGD(model.parameters(), lr=lr, momentum=m, weight_decay=wd)
                     criterion = nn.CrossEntropyLoss()
 
                     last_train_acc, last_val_acc = run_supervised_classifier_training(train_loader, model, optimizer, criterion, device,
-                                                                                      epochs=epochs, save_to=save_path + '{}/{}/'.format(model_name, params))
+                                                                                      epochs=epochs, save_to=save_path + '{}\\{}\\'.format(model_name, params))
 
     # collect and save results
     results = {
@@ -125,7 +122,7 @@ def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, e
     for model_name in models:
         for param_set in os.listdir(save_path + model_name):
             if param_set != '.DS_Store':
-                data = pandas.read_csv(save_path + '{}/{}/history.csv'.format(model_name, param_set))
+                data = pandas.read_csv(save_path + '{}\\{}\\history.csv'.format(model_name, param_set))
                 best_f1_data = data.loc[data['f1'] == data['f1'].max(), :]
 
                 results['method'].append(model_name)
@@ -140,7 +137,7 @@ def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, e
                 results['f1'].append(float(best_f1_data['f1']))
 
     results_df = pandas.DataFrame(results)
-    results_df.to_csv(save_path + 'classification{}.csv'.format(uid), index=False)
+    results_df.to_csv(save_path + 'classification_{}.csv'.format(uid), index=False)
 
 
 def run_supervised_classifier_training(loader_train, model, optimizer, criterion, device,
@@ -433,6 +430,18 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         # create a transform function
         transform = lambda x: model.encoder(torch.unsqueeze(Resize(size=128)(x / 255.), 0)).reshape(-1).detach().cpu().numpy()
 
+    elif method_name == 'trained_ae_full':
+
+        # path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/{}/'.format(method_name)
+        path_to_model = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\{}\\'.format(method_name)
+        model = Autoencoder().to(device)
+        # load a trained model to use it in the transform
+        model.load_state_dict(torch.load(path_to_model + 'autoencoder_at_5.torch', map_location=device))
+        model.eval()
+
+        # create a transform function
+        transform = lambda x: model.encoder(torch.unsqueeze(Resize(size=128)(x / 255.), 0)).reshape(-1).detach().cpu().numpy()
+
     else:
         raise ValueError('Method not recognized')
 
@@ -441,8 +450,8 @@ def get_f_transform(method_name, device=torch.device('cpu')):
 
 def get_wells_of_drug_for_cell_line(cell_line, drug, plate=''):
 
-    meta_path = '/Users/andreidm/ETH/projects/pheno-ml/data/metadata/'
-    # meta_path = 'D:\ETH\projects\pheno-ml\data\metadata\\'
+    # meta_path = '/Users/andreidm/ETH/projects/pheno-ml/data/metadata/'
+    meta_path = 'D:\ETH\projects\pheno-ml\data\metadata\\'
     cell_plate_paths = [meta_path + file for file in os.listdir(meta_path) if cell_line in file and plate in file]
 
     wells = []
@@ -510,8 +519,8 @@ def get_common_control_wells():
 
 def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda')):
 
-    save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/'
-    # save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\similarity\\'
+    # save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/similarity/'
+    save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\similarity\\'
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
@@ -542,14 +551,14 @@ def compare_similarity(path_to_data, methods, uid='', device=torch.device('cuda'
                 results['braycurtis'].append(distances['braycurtis'])
 
     results = pandas.DataFrame(results)
-    results.to_csv(save_to + 'similarity{}.csv'.format(uid), index=False)
+    results.to_csv(save_to + 'similarity_{}.csv'.format(uid), index=False)
 
 
 def collect_and_save_clustering_results_for_multiple_parameter_sets(path_to_images, methods, range_with_step, uid='', device=torch.device('cuda')):
     """ Cluster the dataset over multiple parameters, evaluate results and save results as a dataframe. """
 
-    save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/'
-    # save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\clustering\\'
+    # save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/'
+    save_to = 'D:\ETH\projects\pheno-ml\\res\\comparison\\clustering\\'
     if not os.path.exists(save_to):
         os.makedirs(save_to)
 
@@ -676,17 +685,17 @@ def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
 
 if __name__ == "__main__":
 
-    # path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
-    path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
+    path_to_data = 'D:\ETH\projects\pheno-ml\\data\\full\\cropped\\'
+    # path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
     # models = ['resnet50', 'swav_resnet50', 'dino_resnet50']
-    models = ['1_1_3_1_0.5_0.5_1_0.75_0.5_v2']
+    models = ['trained_ae_full']
 
-    device = torch.device('cpu')
+    device = torch.device('cuda')
 
-    evaluate = False
-    plot = True
+    evaluate = True
+    plot = False
 
-    uid = '_trained_ae_v2'
+    uid = 'trained_ae_full'
 
     if evaluate:
         # clustering analysis within cell lines
