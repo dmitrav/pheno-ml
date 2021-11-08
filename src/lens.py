@@ -68,7 +68,7 @@ def get_codes_and_labels(path, cell_line, drugs_wells, drugs_labels, transform, 
     return encodings, labels
 
 
-def collect_data_and_split(path_to_data, method='trained_ae_v2', device=torch.device('cuda'), save_path=None):
+def collect_data_and_split(path_to_data, method='trained_ae_full', device=torch.device('cuda'), save_path=None):
 
     transform = get_f_transform(method, device=device)
     drugs_and_controls = [*controls, *drugs]
@@ -97,6 +97,8 @@ def collect_data_and_split(path_to_data, method='trained_ae_v2', device=torch.de
     print("test set: {}".format(len(y_test)))
 
     if save_path:
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
         pandas.DataFrame(X_train).to_csv(save_path + 'X_train.csv', index=False)
         pandas.DataFrame(X_test).to_csv(save_path + 'X_test.csv', index=False)
         pandas.DataFrame(y_train).to_csv(save_path + 'y_train.csv', index=False)
@@ -107,8 +109,8 @@ def collect_data_and_split(path_to_data, method='trained_ae_v2', device=torch.de
 
 def train_drug_classifier_alone(path_to_data, epochs, uid='', device=torch.device('cuda')):
 
-    # save_path = 'D:\ETH\projects\pheno-ml\\res\\drug_classifier\\{}\\'.format(uid)
-    save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/{}/'.format(uid)
+    save_path = 'D:\ETH\projects\pheno-ml\\res\\drug_classifier\\{}\\'.format(uid)
+    # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/{}/'.format(uid)
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
@@ -133,13 +135,13 @@ def train_drug_classifier_alone(path_to_data, epochs, uid='', device=torch.devic
             criterion = nn.CrossEntropyLoss()
 
             run_supervised_classifier_training(train_loader, test_loader, model, optimizer, criterion, device,
-                                               epochs=epochs, save_to=save_path + 'lr={},bs={}/'.format(lr, bs))
+                                               epochs=epochs, save_to=save_path + 'lr={},bs={}\\'.format(lr, bs))
 
 
-def train_lens_with_drug_classifier(path_to_data, epochs, uid='', device=torch.device('cuda')):
+def train_lens_with_drug_classifier(path_to_data, epochs, initialize_lens=False, uid='', device=torch.device('cuda')):
 
-    # save_path = 'D:\ETH\projects\pheno-ml\\res\\drug_classifier\\{}\\'.format(uid)
-    save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/{}/'.format(uid)
+    save_path = 'D:\ETH\projects\pheno-ml\\res\\drug_classifier\\{}\\'.format(uid)
+    # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/{}/'.format(uid)
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
@@ -153,10 +155,21 @@ def train_lens_with_drug_classifier(path_to_data, epochs, uid='', device=torch.d
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True, drop_last=True)
 
     dc = DrugClassifier(in_dim=4096, out_dim=33).to(device)
-    # TODO: consider the strategy:
-    #  - initialise with trained_ae_v2,
-    #  - train with low lr (also, much lower than classifier's)
-    lens = Autoencoder().to(device)
+
+    # define feature extractor for lens
+    # weights_path = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/trained_ae_v2/autoencoder_at_5.torch'
+    weights_path = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\trained_ae_full\\autoencoder_at_5.torch'
+    pretrained_model = Autoencoder().to(device)
+    pretrained_model.load_state_dict(torch.load(weights_path, map_location=device))
+    pretrained_model.eval()
+
+    if initialize_lens:
+        lens = Autoencoder().to(device)
+        # initialize with the trained model
+        lens.load_state_dict(torch.load(weights_path, map_location=device))
+        lens.eval()
+    else:
+        lens = Autoencoder().to(device)
 
     dc_optimizer = optim.Adam(dc.parameters(), lr=0.001)
     dc_criterion = nn.CrossEntropyLoss()
@@ -164,17 +177,11 @@ def train_lens_with_drug_classifier(path_to_data, epochs, uid='', device=torch.d
     lens_optimizer = optim.Adam(lens.parameters(), lr=0.001)
     lens_criterion = nn.BCELoss()
 
-    # define feature extractor for lens
-    weights_path = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/trained_ae_v2/autoencoder_at_5.torch'
-    pretrained_model = Autoencoder().to(device)
-    pretrained_model.load_state_dict(torch.load(weights_path, map_location=device))
-    pretrained_model.eval()
-
     for advers_coef in [1, 2, 5, 10, 20, 50]:
 
         run_adversarial_lens_training(train_loader, test_loader, dc, lens, pretrained_model,
                                       dc_optimizer, lens_optimizer, dc_criterion, lens_criterion, advers_coef,
-                                      device, epochs=epochs, save_to=save_path + 'coef={}/'.format(advers_coef))
+                                      device, epochs=epochs, save_to=save_path + 'coef={}\\'.format(advers_coef))
 
 
 def run_supervised_classifier_training(loader_train, loader_test, model, optimizer, criterion, device,
@@ -413,7 +420,7 @@ def plot_reconstructions_and_lens_effects(data_loader, lens, feature_extractor, 
         pyplot.imshow(difference, cmap="gray")
         pyplot.title("difference")
 
-        if save_to is not None:
+        if save_to:
             if not os.path.exists(save_to + 'recs/'):
                 os.makedirs(save_to + 'recs/')
             pyplot.savefig(save_to + 'recs/{}.pdf'.format(i))
@@ -424,19 +431,23 @@ def plot_reconstructions_and_lens_effects(data_loader, lens, feature_extractor, 
 
 if __name__ == "__main__":
 
-    path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
-    save_data_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/data/'
+    # path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
+    path_to_data = 'D:\ETH\projects\pheno-ml\data\\full\\cropped\\'
+    # save_data_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/data/'
+    save_data_path = 'D:\ETH\projects\pheno-ml\\res\\drug_classifier\\data\\'
 
-    device = torch.device('cpu')
+    device = torch.device('cuda')
 
     # # obtain codes and save as DFs
-    # collect_data_and_split(path_to_data, method='trained_ae_v2', device=device, save_path=save_data_path)
+    # collect_data_and_split(path_to_data, method='trained_ae_full', device=device, save_path=save_data_path)
 
     # # classification of 33 drugs
     # train_drug_classifier_alone(save_data_path, 30, uid='without_lens', device=device)
 
     # training of the lens with classification adversary
-    train_lens_with_drug_classifier(path_to_data, 30, uid='lens_itself', device=device)
+    train_lens_with_drug_classifier(path_to_data, 30, initialize_lens=False, uid='lens_no_init', device=device)
+    # training of the lens with classification adversary
+    train_lens_with_drug_classifier(path_to_data, 30, initialize_lens=True, uid='lens_init', device=device)
 
     # # saving lensed data
     # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/lensed_data/'
