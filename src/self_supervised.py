@@ -376,7 +376,7 @@ if __name__ == "__main__":
 
     path_to_data = "D:\ETH\projects\pheno-ml\data\\full\\"
     crop_size = 128
-    epochs = 15
+    epochs = 5
     batch_size = 64
     train_size = -1
     device = torch.device('cuda')

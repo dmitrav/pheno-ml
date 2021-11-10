@@ -138,7 +138,7 @@ def train_drug_classifier_alone(path_to_data, epochs, uid='', device=torch.devic
                                                epochs=epochs, save_to=save_path + 'lr={},bs={}\\'.format(lr, bs))
 
 
-def train_lens_with_drug_classifier(path_to_data, epochs, initialize_lens=False, uid='', device=torch.device('cuda')):
+def train_lens_with_drug_classifier(path_to_data, epochs, adv_coefs, initialize_lens=False, uid='', device=torch.device('cuda')):
 
     save_path = 'D:\ETH\projects\pheno-ml\\res\\drug_classifier\\{}\\'.format(uid)
     # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/{}/'.format(uid)
@@ -172,7 +172,7 @@ def train_lens_with_drug_classifier(path_to_data, epochs, initialize_lens=False,
         # initialize with the trained model
         lens.load_state_dict(torch.load(weights_path, map_location=cuda))
         lens.eval()
-        lens_lr = dc_lr / 3
+        lens_lr = dc_lr / 2
     else:
         lens = Autoencoder().to(cuda)
         lens_lr = dc_lr
@@ -183,11 +183,11 @@ def train_lens_with_drug_classifier(path_to_data, epochs, initialize_lens=False,
     lens_optimizer = optim.Adam(lens.parameters(), lr=lens_lr)
     lens_criterion = nn.BCELoss()
 
-    for advers_coef in [0.1, 0.2, 1, 2, 10]:
+    for coef in adv_coefs:
 
         run_adversarial_lens_training(train_loader, test_loader, dc, lens, pretrained_model,
-                                      dc_optimizer, lens_optimizer, dc_criterion, lens_criterion, advers_coef,
-                                      device, epochs=epochs, save_to=save_path + 'coef={}\\'.format(advers_coef))
+                                      dc_optimizer, lens_optimizer, dc_criterion, lens_criterion, coef,
+                                      device, epochs=epochs, save_to=save_path + 'coef={}\\'.format(coef))
 
 
 def run_supervised_classifier_training(loader_train, loader_test, model, optimizer, criterion, device,
@@ -403,12 +403,15 @@ def run_adversarial_lens_training(loader_train, loader_test, classifier, lens, f
 
 def plot_reconstructions_and_lens_effects(data_loader, lens, feature_extractor, save_to='res/', n_images=10):
 
+    cpu = torch.device('cpu')
+    cuda = torch.device('cuda')
+
     for i in range(n_images):
         images, _ = next(iter(data_loader))
         initial_image = images.squeeze()[0].numpy()
-        reconstructed = feature_extractor(torch.unsqueeze(images[0], 0).to(device))
+        reconstructed = feature_extractor(torch.unsqueeze(images[0], 0).to(cpu))
         reconstructed = reconstructed.cpu().detach().numpy()[0][0]
-        lensed = lens(torch.unsqueeze(images[0], 0).to(device))
+        lensed = lens(torch.unsqueeze(images[0], 0).to(cuda))
         lensed = lensed.cpu().detach().numpy()[0][0]
 
         difference = numpy.abs(reconstructed - lensed)
@@ -452,12 +455,13 @@ if __name__ == "__main__":
     # train_drug_classifier_alone(save_data_path, 30, uid='without_lens', device=device)
 
     # training of the lens with classification adversary
-    train_lens_with_drug_classifier(path_to_data, 5, initialize_lens=True, uid='lens_init')
+    train_lens_with_drug_classifier(path_to_data, 5, [-1, -20, -40, -60], initialize_lens=True, uid='lens_init')
     # training of the lens with classification adversary
-    train_lens_with_drug_classifier(path_to_data, 5, initialize_lens=False, uid='lens_no_init')
+    train_lens_with_drug_classifier(path_to_data, 5, [-1, -20, -40, -60, 1], initialize_lens=False, uid='lens_no_init')
 
     # # saving lensed data
     # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/lensed_data/'
     # collect_data_and_split(path_to_data, method='lens', save_path=save_path)
+
     # # classification of 33 drugs with lensed data
     # train_drug_classifier_alone(save_path, 30, uid='with_lens', device=device)
