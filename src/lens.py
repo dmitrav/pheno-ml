@@ -1,5 +1,5 @@
 
-import torch, os, time, pandas, numpy
+import torch, os, time, pandas, numpy, seaborn
 from torch import nn, optim
 from tqdm import tqdm
 from torchvision.io import read_image
@@ -7,6 +7,7 @@ from matplotlib import pyplot
 from sklearn.model_selection import train_test_split
 from torchmetrics import Recall, Accuracy, Specificity, Precision
 from torch.utils.data import DataLoader, TensorDataset
+from scipy.stats import mannwhitneyu, ks_2samp, kruskal
 
 from src.constants import drugs, cell_lines, controls
 from src.comparison import get_f_transform
@@ -439,6 +440,71 @@ def plot_reconstructions_and_lens_effects(data_loader, lens, feature_extractor, 
     pyplot.close('all')
 
 
+def collect_and_save_lens_classification_results(save=False):
+
+    # collect and save results
+    results = {
+        'method': [], 'lrs': [], 'bs': [],
+        'epoch': [], 'accuracy': [], 'recall': [], 'precision': [], 'specificity': [], 'f1': []
+    }
+
+    save_path = 'D:\ETH\projects\pheno-ml\\res\drug_classifier\\'
+    methods = ['without_lens', 'with_reg_lens', 'with_adv_lens']
+
+    for method_name in methods:
+        for param_set in os.listdir(save_path + method_name):
+            if param_set != '.DS_Store':
+                data = pandas.read_csv(save_path + '{}\\{}\\history.csv'.format(method_name, param_set))
+                best_f1_data = data.loc[data['f1'] == data['f1'].max(), :]
+
+                results['method'].append(method_name)
+                results['lrs'].append(float(param_set.split(',')[0].split('=')[1]))
+                results['bs'].append(float(param_set.split(',')[1].split('=')[1]))
+
+                results['epoch'].append(int(best_f1_data['epoch']))
+                results['accuracy'].append(float(best_f1_data['acc']))
+                results['recall'].append(float(best_f1_data['recall']))
+                results['precision'].append(float(best_f1_data['precision']))
+                results['specificity'].append(float(best_f1_data['specificity']))
+                results['f1'].append(float(best_f1_data['f1']))
+
+    results_df = pandas.DataFrame(results)
+    if save:
+        results_df.to_csv(save_path + 'classification_lens.csv', index=False)
+    return results_df
+
+
+def plot_lens_classification_results(results):
+
+    metric = 'accuracy'
+
+    results = results[results['lrs'] <= 0.01]
+
+    _, p12 = mannwhitneyu(results.loc[results['method'] == 'without_lens', metric],
+                          results.loc[results['method'] == 'with_adv_lens', metric],
+                          alternative='less')
+
+    _, p13 = mannwhitneyu(results.loc[results['method'] == 'without_lens', metric],
+                          results.loc[results['method'] == 'with_reg_lens', metric],
+                          alternative='less')
+
+    print('Mann-Whitney U:')
+    print('no lens {} < adversarial lens {}:'.format(metric, metric), p12 * 2)
+    print('no lens {} < regularized lens {}:'.format(metric, metric), p13 * 2)
+
+    results.loc[results['method'] == 'without_lens', 'method'] = 'No lens'
+    results.loc[results['method'] == 'with_adv_lens', 'method'] = 'Lens\n(adversarial)'
+    results.loc[results['method'] == 'with_reg_lens', 'method'] = 'Lens\n(regularized)'
+
+    seaborn.set()
+    pyplot.figure(figsize=(4,3))
+    seaborn.boxplot(x='method', y=metric, data=results)
+    pyplot.xlabel("")
+    # pyplot.xticks(rotation=45)
+    pyplot.tight_layout()
+    pyplot.show()
+
+
 if __name__ == "__main__":
 
     # path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
@@ -462,13 +528,16 @@ if __name__ == "__main__":
     # # save lensed data and train a classifier on it
     # # adversarial setup
     # # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/data_adv_lens/'
-    save_path = 'D:\ETH\projects\pheno-ml\\res\drug_classifier\\data_adv_lens\\'
-    # collect_data_and_split(path_to_data, method='adv_lens', save_path=save_path)
-    train_drug_classifier_alone(save_path, 30, uid='with_adv_lens', device=device)
+    # save_path = 'D:\ETH\projects\pheno-ml\\res\drug_classifier\\data_adv_lens\\'
+    # # collect_data_and_split(path_to_data, method='adv_lens', save_path=save_path)
+    # train_drug_classifier_alone(save_path, 30, uid='with_adv_lens', device=device)
 
-    # save lensed data and train a classifier on it
-    # regularized setup
-    # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/data_reg_lens/'
-    save_path = 'D:\ETH\projects\pheno-ml\\res\drug_classifier\\data_reg_lens\\'
-    collect_data_and_split(path_to_data, method='reg_lens', save_path=save_path)
-    train_drug_classifier_alone(save_path, 30, uid='with_reg_lens', device=device)
+    # # save lensed data and train a classifier on it
+    # # regularized setup
+    # # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/data_reg_lens/'
+    # save_path = 'D:\ETH\projects\pheno-ml\\res\drug_classifier\\data_reg_lens\\'
+    # collect_data_and_split(path_to_data, method='reg_lens', save_path=save_path)
+    # train_drug_classifier_alone(save_path, 30, uid='with_reg_lens', device=device)
+
+    results = collect_and_save_lens_classification_results()
+    plot_lens_classification_results(results)
