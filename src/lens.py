@@ -446,7 +446,7 @@ if __name__ == "__main__":
     # save_data_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/data/'
     save_data_path = 'D:\ETH\projects\pheno-ml\\res\\drug_classifier\\data\\'
 
-    device = torch.device('cpu')
+    device = torch.device('cuda')
 
     # # obtain codes and save as DFs
     # collect_data_and_split(path_to_data, method='trained_ae_full', device=device, save_path=save_data_path)
@@ -454,14 +454,21 @@ if __name__ == "__main__":
     # # classification of 33 drugs
     # train_drug_classifier_alone(save_data_path, 30, uid='without_lens', device=device)
 
-    # training of the lens with classification adversary
-    train_lens_with_drug_classifier(path_to_data, 5, [-1, -20, -40, -60], initialize_lens=True, uid='lens_init')
-    # training of the lens with classification adversary
-    train_lens_with_drug_classifier(path_to_data, 5, [-1, -20, -40, -60, 1], initialize_lens=False, uid='lens_no_init')
+    # # training of the lens with classification adversary
+    # train_lens_with_drug_classifier(path_to_data, 5, [-1, -20, -40, -60], initialize_lens=True, uid='lens_init')
+    # # training of the lens with classification adversary
+    # train_lens_with_drug_classifier(path_to_data, 5, [-1, -20, -40, -60, 1], initialize_lens=False, uid='lens_no_init')
 
-    # # saving lensed data
-    # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/lensed_data/'
-    # collect_data_and_split(path_to_data, method='lens', save_path=save_path)
+    # # save lensed data and train a classifier on it
+    # # adversarial setup
+    # # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/data_adv_lens/'
+    save_path = 'D:\ETH\projects\pheno-ml\\res\drug_classifier\\data_adv_lens\\'
+    # collect_data_and_split(path_to_data, method='adv_lens', save_path=save_path)
+    train_drug_classifier_alone(save_path, 30, uid='with_adv_lens', device=device)
 
-    # # classification of 33 drugs with lensed data
-    # train_drug_classifier_alone(save_path, 30, uid='with_lens', device=device)
+    # save lensed data and train a classifier on it
+    # regularized setup
+    # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/drug_classifier/data_reg_lens/'
+    save_path = 'D:\ETH\projects\pheno-ml\\res\drug_classifier\\data_reg_lens\\'
+    collect_data_and_split(path_to_data, method='reg_lens', save_path=save_path)
+    train_drug_classifier_alone(save_path, 30, uid='with_reg_lens', device=device)

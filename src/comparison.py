@@ -397,8 +397,9 @@ def get_f_transform(method_name, device=torch.device('cpu')):
                 )
             )).detach().cpu().numpy()
 
-    elif method_name == 'lens':
+    elif method_name == 'adv_lens':
 
+        # FEATURE EXTRACTOR
         # path_to_fe = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/trained_ae_full/'
         path_to_fe = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\trained_ae_full\\'
         model = Autoencoder().to(device)
@@ -407,7 +408,31 @@ def get_f_transform(method_name, device=torch.device('cpu')):
         model.eval()
         feature_extractor = model.encoder
 
-        path_to_lens = ''  # TODO: define path
+        # LENS
+        path_to_lens = 'D:\ETH\projects\pheno-ml\\res\drug_classifier\lens_init\\coef=60\\'
+        lens = Autoencoder().to(device)
+        # load a trained model to use it in the transform
+        lens.load_state_dict(torch.load(path_to_lens + 'lens_at_5.torch', map_location=device))
+        lens.eval()
+
+        # create a transform function
+        transform = lambda x: feature_extractor(  # extract features
+            lens(torch.unsqueeze(Resize(size=128)(x / 255.), 0))  # of the lensed image
+        ).reshape(-1).detach().cpu().numpy()
+
+    elif method_name == 'reg_lens':
+
+        # FEATURE EXTRACTOR
+        # path_to_fe = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/trained_ae_full/'
+        path_to_fe = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\trained_ae_full\\'
+        model = Autoencoder().to(device)
+        # load a trained model to use it in the transform
+        model.load_state_dict(torch.load(path_to_fe + 'autoencoder_at_5.torch', map_location=device))
+        model.eval()
+        feature_extractor = model.encoder
+
+        # LENS
+        path_to_lens = 'D:\ETH\projects\pheno-ml\\res\drug_classifier\lens_init\\coef=-60\\'
         lens = Autoencoder().to(device)
         # load a trained model to use it in the transform
         lens.load_state_dict(torch.load(path_to_lens + 'lens_at_5.torch', map_location=device))
