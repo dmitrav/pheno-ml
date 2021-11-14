@@ -600,14 +600,15 @@ def plot_altered_morphology_maps(path_to_data, n=30):
 
         if no_lens_label != true_label and lens_label == true_label:
             # if lens helped to predict correct label
-            if no_lens_label in ['DMSO', 'PBS'] and true_label not in ['DMSO', 'PBS'] and control_fp_count < n:
+            if no_lens_label in ['DMSO', 'PBS'] and true_label not in ['DMSO', 'PBS'] and \
+                    no_lens_prob < 0.5 < lens_prob and control_fp_count < n:
                 # lens allowed to differentiate a drug from controls
                 plot_image_and_map(image, reconstructed_image, lensed_image,
                                    no_lens_label, no_lens_prob,
                                    lens_label, lens_prob,
                                    save_to=save_path + 'control_fps\\')
                 control_fp_count += 1
-            elif drug_fp_count < n:
+            elif no_lens_prob < 0.5 < lens_prob and drug_fp_count < n:
                 # lens allowed to avoid drug misclassification
                 plot_image_and_map(image, reconstructed_image, lensed_image,
                                    no_lens_label, no_lens_prob,
@@ -616,9 +617,8 @@ def plot_altered_morphology_maps(path_to_data, n=30):
                 drug_fp_count += 1
             else:
                 pass
-
         elif no_lens_label == lens_label == true_label:
-            if no_lens_prob + 0.4 <= lens_prob and increased_confidence_count < n:
+            if no_lens_prob + 0.5 < lens_prob and increased_confidence_count < n:
                 # lens increased confidence in drug classification
                 plot_image_and_map(image, reconstructed_image, lensed_image,
                                    no_lens_label, no_lens_prob,
@@ -668,4 +668,4 @@ if __name__ == "__main__":
     # plot_lens_classification_results(results)
 
     # plot altered morphology examples
-    plot_altered_morphology_maps(path_to_data, n=200)
+    plot_altered_morphology_maps(path_to_data, n=100)
