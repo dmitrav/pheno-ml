@@ -505,6 +505,130 @@ def plot_lens_classification_results(results):
     pyplot.show()
 
 
+def plot_image_and_map(image, reconstructed_image, lensed_image,
+                       no_lens_label, no_lens_prob, lens_label, lens_prob,
+                       save_to=None):
+
+    reconstructed = reconstructed_image.cpu().detach().numpy()[0][0]
+    lensed = lensed_image.cpu().detach().numpy()[0][0]
+    # plot the image and the morphology map
+    difference = numpy.abs(reconstructed - lensed)
+    enhanced_diff = numpy.power(difference, 1.5)  # magic number
+
+    pyplot.figure(figsize=(5, 3))
+    pyplot.subplot(121)
+    pyplot.imshow(numpy.squeeze(image), cmap="gray")
+    pyplot.title("original image")
+    pyplot.subplot(122)
+    pyplot.imshow(enhanced_diff, cmap="gray")
+    pyplot.title("feature importance map")
+    # and provide probabilities
+    error_type = 'FP' if no_lens_label != lens_label else 'TP'
+    pyplot.suptitle('without lens: {}, p={} ({})\nwith lens: {}, p={} (TP)'.format(
+        no_lens_label, no_lens_prob, error_type, lens_label, lens_prob)
+    )
+    pyplot.tight_layout()
+
+    if save_to:
+        if not os.path.exists(save_to):
+            os.makedirs(save_to)
+        pyplot.savefig(save_to + '{},p={},{},p={}.pdf'.format(lens_label, lens_prob, no_lens_label, no_lens_prob))
+    else:
+        pyplot.show()
+
+    pyplot.close('all')
+
+
+def plot_altered_morphology_maps(path_to_data, n=30):
+
+    save_path = 'D:\ETH\projects\pheno-ml\\res\\drug_classifier\\lens_maps\\'
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    cuda = torch.device('cuda')
+
+    # define feature extractor
+    fe_path = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\trained_ae_full\\autoencoder_at_5.torch'
+    feature_extractor = Autoencoder().to(cuda)
+    feature_extractor.load_state_dict(torch.load(fe_path, map_location=cuda))
+    feature_extractor.eval()
+
+    # define default classifier
+    classifier_no_lens_path = 'D:\ETH\projects\pheno-ml\\res\drug_classifier\without_lens\lr=0.001,bs=1024\\classifier_at_30.torch'
+    classifier = DrugClassifier(in_dim=4096, out_dim=33).to(cuda)
+    classifier.load_state_dict(torch.load(classifier_no_lens_path, map_location=cuda))
+    classifier.eval()
+
+    # define lens
+    lens_path = 'D:\ETH\projects\pheno-ml\\res\drug_classifier\lens_init\coef=-60\\lens_at_5.torch'
+    lens = Autoencoder().to(cuda)
+    lens.load_state_dict(torch.load(lens_path, map_location=cuda))
+    lens.eval()
+
+    # define classifier for lens
+    classifier_for_lens_path = lens_path.replace('lens_at', 'classifier_at')
+    classifier_lens = DrugClassifier(in_dim=4096, out_dim=33).to(cuda)
+    classifier_lens.load_state_dict(torch.load(classifier_for_lens_path, map_location=cuda))
+    classifier_lens.eval()
+
+    all_labels = [*controls, *drugs]
+
+    # collect images
+    images, _, labels, _ = collect_data_and_split(path_to_data, method='no', device=cuda)
+
+    control_fp_count = 0
+    drug_fp_count = 0
+    increased_confidence_count = 0
+
+    for image, label in zip(images, labels):
+
+        image_tensor = torch.unsqueeze(torch.Tensor(image), 0).to(cuda)
+
+        reconstructed_image = feature_extractor(image_tensor)
+        image_code = feature_extractor.encoder(image_tensor)
+        default_predicted_label = classifier(image_code)
+
+        lensed_image = lens(image_tensor)
+        lensed_image_code = feature_extractor.encoder(lensed_image)
+        lensed_predicted_label = classifier_lens(lensed_image_code)
+
+        true_label = all_labels[label]
+        no_lens_label = all_labels[int(default_predicted_label.argmax())]
+        lens_label = all_labels[int(lensed_predicted_label.argmax())]
+        no_lens_prob = round(float(default_predicted_label.max()), 4)
+        lens_prob = round(float(lensed_predicted_label.max()), 4)
+
+        if no_lens_label != true_label and lens_label == true_label:
+            # if lens helped to predict correct label
+            if no_lens_label in ['DMSO', 'PBS'] and true_label not in ['DMSO', 'PBS'] and control_fp_count < n:
+                # lens allowed to differentiate a drug from controls
+                plot_image_and_map(image, reconstructed_image, lensed_image,
+                                   no_lens_label, no_lens_prob,
+                                   lens_label, lens_prob,
+                                   save_to=save_path + 'control_fps\\')
+                control_fp_count += 1
+            elif drug_fp_count < n:
+                # lens allowed to avoid drug misclassification
+                plot_image_and_map(image, reconstructed_image, lensed_image,
+                                   no_lens_label, no_lens_prob,
+                                   lens_label, lens_prob,
+                                   save_to=save_path + 'drug_fps\\')
+                drug_fp_count += 1
+            else:
+                pass
+
+        elif no_lens_label == lens_label == true_label:
+            if no_lens_prob + 0.4 <= lens_prob and increased_confidence_count < n:
+                # lens increased confidence in drug classification
+                plot_image_and_map(image, reconstructed_image, lensed_image,
+                                   no_lens_label, no_lens_prob,
+                                   lens_label, lens_prob,
+                                   save_to=save_path + 'higher_confidence\\')
+                increased_confidence_count += 1
+        else:
+            pass
+
+
 if __name__ == "__main__":
 
     # path_to_data = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/training/single_class/'
@@ -539,5 +663,9 @@ if __name__ == "__main__":
     # collect_data_and_split(path_to_data, method='reg_lens', save_path=save_path)
     # train_drug_classifier_alone(save_path, 30, uid='with_reg_lens', device=device)
 
-    results = collect_and_save_lens_classification_results()
-    plot_lens_classification_results(results)
+    # # collect classification results and compare: no lens vs regularizing lens
+    # results = collect_and_save_lens_classification_results()
+    # plot_lens_classification_results(results)
+
+    # plot altered morphology examples
+    plot_altered_morphology_maps(path_to_data, n=200)
