@@ -43,14 +43,14 @@ class Classifier(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, epochs, models, uid='', device=torch.device('cuda'), batch_size=256):
+def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, epochs, methods, uid='', device=torch.device('cuda'), batch_size=256):
 
     save_path = 'D:\ETH\projects\pheno-ml\\res\\comparison\\classification\\'
     # save_path = '/Users/andreidm/ETH/projects/pheno-ml/res/comparison/classification/'
 
-    for model_name in models:
+    for method_name in methods:
 
-        transform = get_f_transform(model_name, device=device)
+        transform = get_f_transform(method_name, device=device)
 
         all_drugs_codes = []
         all_controls_codes = []
@@ -93,25 +93,25 @@ def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, e
             for m in ms:
                 for wd in wds:
 
-                    if model_name == 'resnet50' or model_name == 'swav_resnet50' or model_name == 'dino_resnet50':
+                    if method_name == 'resnet50' or method_name == 'swav_resnet50' or method_name == 'dino_resnet50':
                         model = Classifier().to(device)
-                    elif model_name == 'dino_vit':
+                    elif method_name == 'dino_vit':
                         model = Classifier(in_dim=768).to(device)
-                    elif model_name.startswith('trained_ae'):
+                    elif method_name.startswith('trained_ae'):
                         # my models
                         model = Classifier(in_dim=4096).to(device)
                     else:
                         raise ValueError('Unknown model')
 
                     params = 'lr={},m={},wd={}'.format(lr, m, wd)
-                    if not os.path.exists(save_path + '{}\\{}\\'.format(model_name, params)):
-                        os.makedirs(save_path + '{}\\{}\\'.format(model_name, params))
+                    if not os.path.exists(save_path + '{}\\{}\\'.format(method_name, params)):
+                        os.makedirs(save_path + '{}\\{}\\'.format(method_name, params))
 
                     optimizer = optim.SGD(model.parameters(), lr=lr, momentum=m, weight_decay=wd)
                     criterion = nn.CrossEntropyLoss()
 
                     last_train_acc, last_val_acc = run_supervised_classifier_training(train_loader, model, optimizer, criterion, device,
-                                                                                      epochs=epochs, save_to=save_path + '{}\\{}\\'.format(model_name, params))
+                                                                                      epochs=epochs, save_to=save_path + '{}\\{}\\'.format(method_name, params))
 
     # collect and save results
     results = {
@@ -119,13 +119,13 @@ def train_classifiers_with_pretrained_encoder_and_save_results(path_to_images, e
         'epoch': [], 'accuracy': [], 'recall': [], 'precision': [], 'specificity': [], 'f1': []
     }
 
-    for model_name in models:
-        for param_set in os.listdir(save_path + model_name):
+    for method_name in methods:
+        for param_set in os.listdir(save_path + method_name):
             if param_set != '.DS_Store':
-                data = pandas.read_csv(save_path + '{}\\{}\\history.csv'.format(model_name, param_set))
+                data = pandas.read_csv(save_path + '{}\\{}\\history.csv'.format(method_name, param_set))
                 best_f1_data = data.loc[data['f1'] == data['f1'].max(), :]
 
-                results['method'].append(model_name)
+                results['method'].append(method_name)
                 results['lrs'].append(float(param_set.split(',')[0].split('=')[1]))
                 results['ms'].append(float(param_set.split(',')[1].split('=')[1]))
                 results['wds'].append(float(param_set.split(',')[2].split('=')[1]))
@@ -414,17 +414,19 @@ def get_f_transform(method_name, device=torch.device('cpu')):
                 )
             )).detach().cpu().numpy()
 
-    elif method_name == 'lens':
+    elif method_name == 'adv_lens':
 
-        path_to_fe = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/trained_ae_v2/'
-        # path_to_model = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\trained_ae_v2\\'
+        # FEATURE EXTRACTOR
+        # path_to_fe = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/trained_ae_full/'
+        path_to_fe = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\trained_ae_full\\'
         model = Autoencoder().to(device)
         # load a trained model to use it in the transform
         model.load_state_dict(torch.load(path_to_fe + 'autoencoder_at_5.torch', map_location=device))
         model.eval()
         feature_extractor = model.encoder
 
-        path_to_lens = ''  # TODO: define path
+        # LENS
+        path_to_lens = 'D:\ETH\projects\pheno-ml\\res\drug_classifier\lens_init\\coef=60\\'
         lens = Autoencoder().to(device)
         # load a trained model to use it in the transform
         lens.load_state_dict(torch.load(path_to_lens + 'lens_at_5.torch', map_location=device))
@@ -435,17 +437,28 @@ def get_f_transform(method_name, device=torch.device('cpu')):
             lens(torch.unsqueeze(Resize(size=128)(x / 255.), 0))  # of the lensed image
         ).reshape(-1).detach().cpu().numpy()
 
-    elif method_name == 'trained_ae_v2':
+    elif method_name == 'reg_lens':
 
-        path_to_model = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/{}/'.format(method_name)
-        # path_to_model = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\{}\\'.format(method_name)
+        # FEATURE EXTRACTOR
+        # path_to_fe = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/trained_ae_full/'
+        path_to_fe = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\trained_ae_full\\'
         model = Autoencoder().to(device)
         # load a trained model to use it in the transform
-        model.load_state_dict(torch.load(path_to_model + 'autoencoder_at_5.torch', map_location=device))
+        model.load_state_dict(torch.load(path_to_fe + 'autoencoder_at_5.torch', map_location=device))
         model.eval()
+        feature_extractor = model.encoder
+
+        # LENS
+        path_to_lens = 'D:\ETH\projects\pheno-ml\\res\drug_classifier\lens_init\\coef=-60\\'
+        lens = Autoencoder().to(device)
+        # load a trained model to use it in the transform
+        lens.load_state_dict(torch.load(path_to_lens + 'lens_at_5.torch', map_location=device))
+        lens.eval()
 
         # create a transform function
-        transform = lambda x: model.encoder(torch.unsqueeze(Resize(size=128)(x / 255.), 0)).reshape(-1).detach().cpu().numpy()
+        transform = lambda x: feature_extractor(  # extract features
+            lens(torch.unsqueeze(Resize(size=128)(x / 255.), 0))  # of the lensed image
+        ).reshape(-1).detach().cpu().numpy()
 
     elif method_name == 'trained_ae_full':
 
