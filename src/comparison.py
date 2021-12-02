@@ -223,11 +223,27 @@ def plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/ph
 
     results = pandas.read_csv(path_to_results)
 
+    results = pandas.concat([
+        results.loc[results['method'] != 'trained_ae_v2', :],
+        results.loc[results['method'] == 'trained_ae_v2', :]
+    ])
+
+    # filter out the worst performance in all models
+    results = results.drop(results[results['lrs'] == 0.01].index)
+
     results.loc[results['method'] == 'resnet50', 'method'] = 'RN-50\n(pretrained)'
     results.loc[results['method'] == 'swav_resnet50', 'method'] = 'RN-50+SwAV\n(pretrained)'
     results.loc[results['method'] == 'dino_resnet50', 'method'] = 'RN-50+DINO\n(pretrained)'
     results.loc[results['method'] == 'dino_vit', 'method'] = 'ViT+DINO\n(pretrained)'
     results.loc[results['method'] == 'trained_ae_v2', 'method'] = 'ConvAE\n(trained)'
+
+    for method in list(results['method'].unique()):
+        print(method)
+        for metric in ['accuracy', 'f1']:
+            print("{} = {} +- {}".format(metric,
+                                         results.loc[results['method'] == method, metric].median(),
+                                         results.loc[results['method'] == method, metric].mad()))
+        print()
 
     i = 1
     seaborn.set()
@@ -241,6 +257,7 @@ def plot_classification_results(path_to_results='/Users/andreidm/ETH/projects/ph
         i += 1
     pyplot.tight_layout()
     pyplot.show()
+    # pyplot.savefig('/Users/andreidm/Library/Mobile Documents/com~apple~CloudDocs/ETHZ/papers_posters/pheno-ml/MIDL22/v1/img/classification.pdf')
 
 
 def get_image_encodings_from_path(path, common_image_ids, transform, device=torch.device('cpu'), n=None, randomize=True):
@@ -627,9 +644,15 @@ def plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
 
     # normalize distances
     for method in list(results['method'].unique()):
+        print(method)
         for metric in ['euclidean', 'cosine', 'correlation', 'braycurtis']:
             results.loc[results['method'] == method, metric] /= results.loc[results['method'] == method, metric].max()
             results.loc[results['method'] == method, metric] = 1 / results.loc[results['method'] == method, metric]
+
+            print("{} = {} +- {}".format(metric,
+                                         results.loc[results['method'] == method, metric].median(),
+                                         results.loc[results['method'] == method, metric].mad()))
+        print()
 
     seaborn.set()
     i = 1
@@ -643,6 +666,7 @@ def plot_similarity_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
         i += 1
     pyplot.tight_layout()
     pyplot.show()
+    # pyplot.savefig('/Users/andreidm/Library/Mobile Documents/com~apple~CloudDocs/ETHZ/papers_posters/pheno-ml/MIDL22/v1/img/similarity.pdf')
 
 
 def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-ml/res/comparison/clustering/clustering.csv'):
@@ -669,6 +693,14 @@ def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
     results['not_noise'] = 100 - results['noise']
     results['davies_bouldin-1'] = 1 / results['davies_bouldin']
 
+    for method in list(results['method'].unique()):
+        print(method)
+        for metric in ['silhouette', 'davies_bouldin-1']:
+            print("{} = {} +- {}".format(metric,
+                                         results.loc[results['method'] == method, metric].median(),
+                                         results.loc[results['method'] == method, metric].mad()))
+        print()
+
     seaborn.set()
     i = 1
     pyplot.figure(figsize=(10, 3))
@@ -681,6 +713,7 @@ def plot_clustering_results(path_to_results='/Users/andreidm/ETH/projects/pheno-
         i += 1
     pyplot.tight_layout()
     pyplot.show()
+    # pyplot.savefig('/Users/andreidm/Library/Mobile Documents/com~apple~CloudDocs/ETHZ/papers_posters/pheno-ml/MIDL22/v1/img/clustering.pdf')
 
 
 def plot_cropping_strategies():
@@ -788,6 +821,7 @@ def plot_cropping_strategies():
     pyplot.legend()
     pyplot.tight_layout()
     pyplot.show()
+    # pyplot.savefig('/Users/andreidm/Library/Mobile Documents/com~apple~CloudDocs/ETHZ/papers_posters/pheno-ml/MIDL22/v1/img/cropping.pdf')
 
 
 if __name__ == "__main__":
