@@ -162,8 +162,8 @@ def train_lens_with_drug_classifier(path_to_data, epochs, adv_coefs, initialize_
     dc_lr = 0.001
 
     # define feature extractor for lens
-    # weights_path = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/trained_ae_v2/autoencoder_at_5.torch'
-    weights_path = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\trained_ae_full\\autoencoder_at_5.torch'
+    # weights_path = '/Users/andreidm/ETH/projects/pheno-ml/pretrained/convae/trained_ae_v2/trained_model.torch'
+    weights_path = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\trained_ae_full\\trained_model.torch'
     pretrained_model = Autoencoder().to(cpu)
     pretrained_model.load_state_dict(torch.load(weights_path, map_location=cpu))
     pretrained_model.eval()
@@ -548,7 +548,7 @@ def plot_altered_morphology_maps(path_to_data, n=30):
     cuda = torch.device('cuda')
 
     # define feature extractor
-    fe_path = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\trained_ae_full\\autoencoder_at_5.torch'
+    fe_path = 'D:\ETH\projects\pheno-ml\\pretrained\\convae\\trained_ae_full\\trained_model.torch'
     feature_extractor = Autoencoder().to(cuda)
     feature_extractor.load_state_dict(torch.load(fe_path, map_location=cuda))
     feature_extractor.eval()
@@ -644,8 +644,8 @@ if __name__ == "__main__":
     # # classification of 33 drugs
     # train_drug_classifier_alone(save_data_path, 30, uid='without_lens', device=device)
 
-    # # training of the lens with classification adversary
-    # train_lens_with_drug_classifier(path_to_data, 5, [-1, -20, -40, -60], initialize_lens=True, uid='lens_init')
+    # training of the lens with classification adversary
+    train_lens_with_drug_classifier(path_to_data, 5, [-1, -20, -40, -60], initialize_lens=True, uid='lens_init')
     # # training of the lens with classification adversary
     # train_lens_with_drug_classifier(path_to_data, 5, [-1, -20, -40, -60, 1], initialize_lens=False, uid='lens_no_init')
 
