@@ -1,7 +1,6 @@
 
 import os, pandas, torch, numpy, random, umap, time, seaborn, itertools
 from hdbscan import HDBSCAN
-from torch.nn import Sequential
 from torchvision.io import read_image
 from torchvision.transforms import Resize, Grayscale, ToPILImage, ToTensor
 from scipy.spatial.distance import pdist
@@ -13,7 +12,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from torchmetrics import Accuracy, Recall, Precision, Specificity
 from tensorflow.keras.models import Model
 
-from src.autoencoder import get_trained_autoencoder
+from src.utils.autoencoder import get_trained_autoencoder
 from src.self_supervised import Autoencoder
 from src.constants import cell_lines, drugs
 from src import pretrained

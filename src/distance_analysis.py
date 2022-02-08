@@ -681,7 +681,7 @@ if __name__ == "__main__":
             using proper image encodings """
         plot_distances_single_controls_vs_averaged_one()
 
-    if True:
+    if False:
         """ run main distance analysis and save results """
 
         save_distances = True
