@@ -7,6 +7,9 @@ from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import tensorflow as tf
+import torchvision, torch
+from pl_bolts.models.self_supervised import SwAV
+from torchvision.transforms import Resize, Grayscale, ToPILImage, ToTensor
 
 
 def create_autoencoder_model(target_size=(128, 128)):
@@ -189,65 +192,88 @@ def train_autoencoder(path="/Users/andreidm/ETH/projects/pheno-ml/data/squeezed/
     visualize_reconstruction(val_batches, autoencoder)
 
 
-def create_and_save_encodings_for_well(well_meta, image_paths, save_to_path):
+def create_and_save_encodings_for_well(well_meta, image_paths, save_to_path, single_drug=None, method=None):
 
     encodings = []
 
-    _, _, autoencoder = create_autoencoder_model()
-    # autoencoder.load_weights('/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae128_at_21_0.6800.h5')
-    autoencoder.load_weights('/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae_cropped_128_adam_at_16_0.6880.h5')
+    if method is None:
+        _, _, autoencoder = create_autoencoder_model()
+        # autoencoder.load_weights('/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae128_at_21_0.6800.h5')
+        autoencoder.load_weights('/Users/andreidm/ETH/projects/pheno-ml/res/weights/ae_cropped_128_adam_at_16_0.6880.h5')
+        encoder = Model(autoencoder.input, autoencoder.layers[-2].output)
 
-    encoder = Model(autoencoder.input, autoencoder.layers[-2].output)
+        for path in image_paths:
 
-    for path in image_paths:
+            image = tf.io.read_file(path)
+            image = tf.image.decode_jpeg(image, channels=1)
+            image = tf.image.resize(image, [autoencoder.input.shape[1], autoencoder.input.shape[2]])
+            image /= 255.
+            image = numpy.expand_dims(image, axis=0)
 
-        image = tf.io.read_file(path)
-        image = tf.image.decode_jpeg(image, channels=1)
-        image = tf.image.resize(image, [autoencoder.input.shape[1], autoencoder.input.shape[2]])
-        image /= 255.
+            encoded_image = encoder(image)
+            encoded_image = numpy.array(encoded_image).flatten()
+            encodings.append(encoded_image)
+    else:
 
-        image = numpy.expand_dims(image, axis=0)
+        weight_path = 'https://pl-bolts-weights.s3.us-east-2.amazonaws.com/swav/swav_imagenet/swav_imagenet.pth.tar'
+        model = SwAV.load_from_checkpoint(weight_path, strict=True)
+        model.freeze()
 
-        encoded_image = encoder(image)
-        encoded_image = numpy.array(encoded_image).flatten()
+        transform = lambda x: model(
+            torch.unsqueeze(  # add batch dimension
+                ToTensor()(  # convert PIL to tensor
+                    Grayscale(num_output_channels=3)(  # apply grayscale, keeping 3 channels
+                        ToPILImage()(  # conver to PIL to apply grayscale
+                            Resize(size=224)(  # and resnet is trained with 224
+                                Resize(size=128)(x)  # images are 256, but all models are trained with 128
+                            )
+                        )
+                    )
+                ), 0)
+        ).reshape(-1).detach().cpu().numpy()
 
-        encodings.append(encoded_image)
+        for path in image_paths:
+
+            img = torchvision.io.read_image(path)
+            img_encoded = transform(img.to('cpu'))
+            encodings.append(img_encoded.flatten())
 
     well_features = pandas.DataFrame(encodings)
     well_features.insert(0, 'Time', well_meta['Time'].values)
     well_features.insert(0, 'Date', well_meta['Time.gmt'].values)
 
-    well_features.to_csv(save_to_path + well_meta['Well'].values[0] + '.csv', index=False)
+    well_features.to_csv(save_to_path + well_meta['Well'].values[0] + '_{}_{}.csv'.format(single_drug, method), index=False)
     print(well_meta['Well'].values[0] + ' encoded and saved')
 
 
-def generate_encodings_for_batches():
+def generate_encodings_for_batches(batch_range, single_drug=None, method=None):
 
     all_meta_data = pandas.read_csv("/Users/andreidm/ETH/projects/pheno-ml/data/pheno-ml-metadata.csv")
 
     path_to_images = '/Users/andreidm/ETH/projects/pheno-ml/data/cropped/batch_{}/'
-    path_to_plate_meta_data = '/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/{}.csv'
+    path_to_plate_meta_data = '/Users/andreidm/ETH/projects/pheno-ml/data/metadata/{}.csv'
 
-    for batch in range(1, 8):
+    for batch in batch_range:
 
         print("\nprocessing batch {}...\n".format(batch))
 
         for cl_plate in os.listdir(path_to_images.format(batch)):
+             if not cl_plate.startswith('.'):
+                save_to = path_to_images.format(batch) + cl_plate + '/'
+                print("\nprocessing folder {}...\n".format(cl_plate))
 
-            save_to = path_to_images.format(batch) + cl_plate + '/'
-            print("\nprocessing folder {}...\n".format(cl_plate))
+                plate_meta_data = pandas.read_csv(path_to_plate_meta_data.format(cl_plate))
 
-            plate_meta_data = pandas.read_csv(path_to_plate_meta_data.format(cl_plate))
-
-            unique_wells = plate_meta_data.loc[~pandas.isnull(plate_meta_data['Drug']), 'Well'].unique()
-            cell_line, _, plate = cl_plate.replace('.csv', '').split('_')
-
-            for well in unique_wells:
-
-                if os.path.exists(save_to + well + '.csv'):
-                    # this well has been processed previously
-                    continue
+                if single_drug:
+                    drug_wells = plate_meta_data.loc[plate_meta_data['Drug'] == single_drug, 'Well'].unique()
+                    control_wells = plate_meta_data.loc[(plate_meta_data['Drug'] == 'DMSO') & (plate_meta_data['Final_conc_uM'] == 367.), 'Well'].unique()
+                    unique_wells = numpy.concatenate([drug_wells, control_wells])
                 else:
+                    unique_wells = plate_meta_data.loc[~pandas.isnull(plate_meta_data['Drug']), 'Well'].unique()
+
+                cell_line, _, plate = cl_plate.replace('.csv', '').split('_')
+
+                for well in unique_wells:
 
                     # align images with meta data to substitute dates with time axis
                     meta_data = all_meta_data.loc[(all_meta_data['cell'] == cell_line) &
@@ -273,7 +299,7 @@ def generate_encodings_for_batches():
 
                             assert meta_data.shape[0] == len(image_paths)
 
-                        create_and_save_encodings_for_well(meta_data, image_paths, save_to)
+                        create_and_save_encodings_for_well(meta_data, image_paths, save_to, single_drug=single_drug, method=method)
 
 
 def get_trained_autoencoder():
@@ -318,12 +344,12 @@ if __name__ == "__main__":
         model_name = 'ae_cropped'
         train_autoencoder(path=path, model_name=model_name)
 
-    if True:
+    if False:
         save_to = '/Users/andreidm/Library/Mobile Documents/com~apple~CloudDocs/ETHZ/papers_posters/pheno-ml/ICML21/img/'
         load_model_and_plot_results(save_to)
 
-    if False:
-        generate_encodings_for_batches()
+    if True:
+        generate_encodings_for_batches([1], single_drug='Cladribine', method='swav_resnet50')
 
 
 

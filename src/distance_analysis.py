@@ -453,6 +453,39 @@ def get_closest_time_point_index(control_times, drug_time):
                     return i+1
 
 
+def get_average_swav_encodings(path_to_encodings, sample_ids, sample_name):
+    """ Analog for Cladribine case """
+
+    samples = []
+    for id in sample_ids:
+        if os.path.exists(path_to_encodings + id + '_Cladribine_swav_resnet50.csv'):
+            sample = pandas.read_csv(path_to_encodings + id + '.csv')
+            samples.append(sample.values)
+        else:
+            print("{}: well {} not found".format(sample_name, id))
+
+    shapes = numpy.array([sample.shape[0] for sample in samples])
+    if len(set(shapes)) > 1:
+        # filter out samples of different shape
+        most_freq_shape = numpy.argmax(numpy.bincount(shapes))
+        samples = [sample for sample in samples if sample.shape[0] == most_freq_shape]
+        print(numpy.sum(shapes == most_freq_shape), 'of', shapes.shape[0], '{} samples have shape {}, using only those'.format(sample_name, most_freq_shape))
+
+    # compute average sample now
+    average_sample = []
+    for i in range(2, samples[0].shape[1]):
+        feature = []
+        for sample in samples:
+            feature.append(sample[:, i])
+        feature = numpy.mean(feature, axis=0)
+        average_sample.append(feature)
+
+    sample_encodings = numpy.array(average_sample).T
+    time_scale = samples[0][:, 1]
+
+    return sample_encodings, time_scale
+
+
 def get_average_sample_encodings(path_to_encodings, sample_ids, sample_name):
     """ This method is used to calculate average controls and drug concentration replicates. """
 
@@ -489,7 +522,7 @@ def get_average_sample_encodings(path_to_encodings, sample_ids, sample_name):
 def calculate_distances_for_batch_and_save_results(batch_number, metric='euclidean', control_name='DMSO', save_distances=True, save_dist_plots=True, save_cv_plots=False,
                                                    path_to_save_to='/Users/andreidm/ETH/projects/pheno-ml/res/distances/cropped/'):
 
-    path_to_all_meta = "/Volumes/biol_imsb_sauer_1/users/Mauro/Cell_culture_data/190310_LargeScreen/imageData/metadata/"  # folder name, e.g. ACHN_CL3_P1
+    path_to_all_meta = "/Users/andreidm/ETH/projects/pheno-ml/data/metadata/"  # folder name, e.g. ACHN_CL3_P1
     path_to_batches = "/Users/andreidm/ETH/projects/pheno-ml/data/cropped/"
 
     print("\nbatch {} is being processed".format(batch_number))
@@ -507,10 +540,12 @@ def calculate_distances_for_batch_and_save_results(batch_number, metric='euclide
 
             control_data = meta_data[(meta_data['Drug'] == control_name) & (meta_data['Final_conc_uM'] == 367.)]
             control_ids = control_data['Row'].astype('str') + control_data['Column'].astype('str')
-            average_control, control_times = get_average_sample_encodings(path_to_encodings, control_ids, 'control')
+            # average_control, control_times = get_average_sample_encodings(path_to_encodings, control_ids, 'control')
+            average_control, control_times = get_average_swav_encodings(path_to_encodings, control_ids, 'control')
 
             drugs_data = meta_data[meta_data['Drug'] != control_name]
-            drug_names = drugs_data['Drug'].dropna().unique()
+            # drug_names = drugs_data['Drug'].dropna().unique()
+            drug_names = ['Cladribine']
 
             for drug_name in drug_names:
                 print('\n', drug_name, "is being processed")
@@ -532,7 +567,8 @@ def calculate_distances_for_batch_and_save_results(batch_number, metric='euclide
                     # get ids of different concentrations
                     con_ids = drug_ids.values[numpy.where(drug_cons == unique_cons[i])[0]]
 
-                    average_drug_con, drug_times = get_average_sample_encodings(path_to_encodings, con_ids, '{}, (c={})'.format(drug_name,unique_cons[i]))
+                    # average_drug_con, drug_times = get_average_sample_encodings(path_to_encodings, con_ids, '{}, (c={})'.format(drug_name,unique_cons[i]))
+                    average_drug_con, drug_times = get_average_swav_encodings(path_to_encodings, con_ids, '{}, (c={})'.format(drug_name,unique_cons[i]))
                     cvs_time_axis = drug_times[:]
 
                     drug_con_to_control_dist = []
@@ -557,7 +593,7 @@ def calculate_distances_for_batch_and_save_results(batch_number, metric='euclide
                         con_key = str(round(unique_cons[i], 4))
                         drug_result[con_key] = all_dists[i]
 
-                    one_time_path_for_mauro = '/Volumes/biol_imsb_sauer_1/users/Mauro/from_Andrei/distances/cropped/'
+                    one_time_path_for_mauro = '/Volumes/biol_imsb_sauer_1/users/Mauro/from_Andrei/swav_distances_batch_1/'
                     current_path = one_time_path_for_mauro + 'batch_{}/'.format(batch_number) + '{}/'.format(cell_line_folder)
                     if not os.path.exists(current_path):
                         os.makedirs(current_path)
@@ -650,18 +686,18 @@ if __name__ == "__main__":
 
         save_distances = True
         save_dist_plots = True
-        save_cv_plots = True
-        path_to_save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/distances/'
+        save_cv_plots = False
+        path_to_save_to = '/Users/andreidm/ETH/projects/pheno-ml/res/swav_distances/'
 
-        batches = [1, 2, 3, 4, 5, 6, 7]
+        batches = [1]
 
-        # for batch in batches:
-        #     calculate_distances_for_batch_and_save_results(batch,
-        #                                                    metric='euclidean',
-        #                                                    save_distances=save_distances,
-        #                                                    save_dist_plots=save_dist_plots,
-        #                                                    save_cv_plots=save_cv_plots,
-        #                                                    path_to_save_to=path_to_save_to)
+        for batch in batches:
+            calculate_distances_for_batch_and_save_results(batch,
+                                                           metric='euclidean',
+                                                           save_distances=save_distances,
+                                                           save_dist_plots=save_dist_plots,
+                                                           save_cv_plots=save_cv_plots,
+                                                           path_to_save_to=path_to_save_to)
 
         for batch in batches:
             calculate_distances_for_batch_and_save_results(batch,
@@ -670,5 +706,4 @@ if __name__ == "__main__":
                                                            save_dist_plots=save_dist_plots,
                                                            save_cv_plots=save_cv_plots,
                                                            path_to_save_to=path_to_save_to)
-
 
