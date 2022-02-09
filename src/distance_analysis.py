@@ -459,7 +459,7 @@ def get_average_swav_encodings(path_to_encodings, sample_ids, sample_name):
     samples = []
     for id in sample_ids:
         if os.path.exists(path_to_encodings + id + '_Cladribine_swav_resnet50.csv'):
-            sample = pandas.read_csv(path_to_encodings + id + '.csv')
+            sample = pandas.read_csv(path_to_encodings + id + '_Cladribine_swav_resnet50.csv')
             samples.append(sample.values)
         else:
             print("{}: well {} not found".format(sample_name, id))
@@ -593,7 +593,7 @@ def calculate_distances_for_batch_and_save_results(batch_number, metric='euclide
                         con_key = str(round(unique_cons[i], 4))
                         drug_result[con_key] = all_dists[i]
 
-                    one_time_path_for_mauro = '/Volumes/biol_imsb_sauer_1/users/Mauro/from_Andrei/swav_distances_batch_1/'
+                    one_time_path_for_mauro = '/Volumes/biol_imsb_sauer_1/users/Mauro/from_Andrei/swav_distances/'
                     current_path = one_time_path_for_mauro + 'batch_{}/'.format(batch_number) + '{}/'.format(cell_line_folder)
                     if not os.path.exists(current_path):
                         os.makedirs(current_path)
@@ -681,7 +681,7 @@ if __name__ == "__main__":
             using proper image encodings """
         plot_distances_single_controls_vs_averaged_one()
 
-    if False:
+    if True:
         """ run main distance analysis and save results """
 
         save_distances = True
@@ -702,6 +702,21 @@ if __name__ == "__main__":
         for batch in batches:
             calculate_distances_for_batch_and_save_results(batch,
                                                            metric='braycurtis',
+                                                           save_distances=save_distances,
+                                                           save_dist_plots=save_dist_plots,
+                                                           save_cv_plots=save_cv_plots,
+                                                           path_to_save_to=path_to_save_to)
+
+        for batch in batches:
+            calculate_distances_for_batch_and_save_results(batch,
+                                                           metric='cosine',
+                                                           save_distances=save_distances,
+                                                           save_dist_plots=save_dist_plots,
+                                                           save_cv_plots=save_cv_plots,
+                                                           path_to_save_to=path_to_save_to)
+        for batch in batches:
+            calculate_distances_for_batch_and_save_results(batch,
+                                                           metric='correlation',
                                                            save_distances=save_distances,
                                                            save_dist_plots=save_dist_plots,
                                                            save_cv_plots=save_cv_plots,
